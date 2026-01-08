@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Auralis | Audio Intelligence</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+
+  <header class="navbar">
+    <div class="logo"><i class="fa-solid fa-wave-square"></i> Auralis</div>
+    <nav>
+      <a href="index.html" class="active">Home</a>
+      <a href="About.html">About</a>
+      <a href="dashboard.html">Dashboard</a>
+    </nav>
+    <button class="signin btn-hover">Sign In</button>
+  </header>
+
+  <section class="hero">
+    <span class="badge">AI-POWERED LISTENING</span>
+
+    <h1>Audio Intelligence<br><span>Reimagined</span></h1>
+
+    <p>
+      Upload audio to detect environments, situations, and sounds instantly.
+      The next generation of Audio Language Models (ALM) is here.
+    </p>
+
+    <div class="interactive-area">
+        
+        <div id="uploadContainer" class="upload-container">
+            <input type="file" id="audioUpload" accept="audio/*" hidden />
+            <button class="btn large-upload-btn btn-hover" onclick="document.getElementById('audioUpload').click()">
+                <i class="fa-solid fa-cloud-arrow-up"></i> Upload Audio to Analyze
+            </button>
+            <p class="small-text">or drag and drop file here</p>
+        </div>
+
+        <div id="playerContainer" class="player-container hidden">
+            <div class="glass-player">
+                <button id="playBtn" class="play-btn btn-hover"><i class="fa-solid fa-play"></i></button>
+                
+                <div class="track-info">
+                    <span id="fileNameDisplay">mysound_recording.mp3</span>
+                    <div class="waveform" id="waveform">
+                        <span></span><span></span><span></span><span></span><span></span>
+                        <span></span><span></span><span></span><span></span><span></span>
+                        <span></span><span></span><span></span><span></span><span></span>
+                    </div>
+                </div>
+
+                <div class="time-display">00:00 / 00:00</div>
+            </div>
+        </div>
+
+    </div>
+
+    <div id="loading" class="loading hidden">
+      <i class="fa-solid fa-circle-notch fa-spin"></i> Analyzing soundwaves...
+    </div>
+
+    <div id="result" class="result hidden">
+      <div class="result-header">
+        <h4>Analysis Complete</h4>
+        <span id="confidenceText" class="badge-score">--%</span>
+      </div>
+      
+      <div class="result-grid">
+        <div class="result-item">
+          <i class="fa-solid fa-location-dot"></i>
+          <div><small>Location</small><span id="locationText">...</span></div>
+        </div>
+        <div class="result-item">
+          <i class="fa-solid fa-brain"></i>
+          <div><small>Context</small><span id="situationText">...</span></div>
+        </div>
+        <div class="result-item">
+          <i class="fa-solid fa-volume-high"></i>
+          <div><small>Sound Class</small><span id="classText">...</span></div>
+        </div>
+      </div>
+
+      <button id="saveBtn" class="btn full-width btn-hover">
+        <i class="fa-solid fa-floppy-disk"></i> Save to Dashboard
+      </button>
+    </div>
+
+    <audio id="audio"></audio>
+  </section>
+
+  <script src="script.js"></script>
+</body>
+</html>
