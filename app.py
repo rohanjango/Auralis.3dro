@@ -16,10 +16,11 @@ from transformers import pipeline
 app = FastAPI(title="Auralis API")
 
 # 2. ADD SECURITY PASS (CORS) - CRITICAL STEP
+# --- CORS SECURITY PASS ---
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # Allows your website to read the answer
-    allow_credentials=True,
+    allow_origins=["*"],     # Allows all websites
+    allow_credentials=False, # <--- CHANGE THIS TO FALSE (Fixes the block)
     allow_methods=["*"],
     allow_headers=["*"],
 )
