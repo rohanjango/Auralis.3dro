@@ -1,4 +1,3 @@
-
 const audio = document.getElementById("audio");
 const playBtn = document.getElementById("playBtn");
 const bars = document.querySelectorAll(".waveform span");
@@ -23,7 +22,6 @@ const saveBtn = document.getElementById("saveBtn");
 // File Inputs
 const audioUpload = document.getElementById("audioUpload");
 
-// --- Variable to store the actual file for the API ---
 let currentFile = null;
 
 // --- 1. HANDLE FILE UPLOAD ---
@@ -51,50 +49,31 @@ uploadContainer.addEventListener("drop", (e) => {
 });
 
 function initPlayer(file) {
-    // Save file to global variable so we can send it to API later
     currentFile = file;
-
-    // 1. Set File Name
     fileNameDisplay.textContent = file.name;
-    
-    // 2. Create Object URL
     const fileURL = URL.createObjectURL(file);
     audio.src = fileURL;
 
-    // 3. Swap UI: Hide Upload, Show Player
     uploadContainer.classList.add("hidden");
     playerContainer.classList.remove("hidden");
-    
-    // 4. Hide old results if any
     result.classList.add("hidden");
-    
-    // 5. Reset Icon
     playBtn.innerHTML = '<i class="fa-solid fa-play"></i>';
 }
 
 // --- 2. PLAYER LOGIC & API TRIGGER ---
 playBtn.addEventListener("click", () => {
-    // 1. Always trigger analysis immediately if not done yet
+    // 1. Trigger analysis immediately
     if (result.classList.contains("hidden")) {
         analyzeAudio(currentFile);
     }
 
-    // 2. Then try to play audio (if possible)
+    // 2. Handle Audio Playback
     if (audio.paused) {
-        // Wrap play in a promise to prevent errors if file is tricky
-        const playPromise = audio.play();
-        if (playPromise !== undefined) {
-            playPromise.then(_ => {
-                // Play started successfully
-                playBtn.innerHTML = '<i class="fa-solid fa-pause"></i>';
-                waveform.classList.add("active");
-                bars.forEach(bar => bar.style.animationPlayState = "running");
-            })
-            .catch(error => {
-                console.log("Playback prevented:", error);
-                // Even if audio fails to play, analysis already started above!
-            });
-        }
+        audio.play().then(() => {
+            playBtn.innerHTML = '<i class="fa-solid fa-pause"></i>';
+            waveform.classList.add("active");
+            bars.forEach(bar => bar.style.animationPlayState = "running");
+        }).catch(err => console.log("Audio play error:", err));
     } else {
         audio.pause();
         playBtn.innerHTML = '<i class="fa-solid fa-play"></i>';
@@ -109,92 +88,52 @@ audio.addEventListener("ended", () => {
     bars.forEach(bar => bar.style.animationPlayState = "paused");
 });
 
-// --- 3. REAL API INTEGRATION (UPDATED) ---
+// --- 3. REAL API INTEGRATION ---
 async function analyzeAudio(file) {
     if (!file) return;
 
-    // Show Loading Animation
     loading.classList.remove("hidden");
-    result.classList.add("hidden"); // Ensure result is hidden while loading
+    result.classList.add("hidden");
     
-    // Create Form Data to send file
     const formData = new FormData();
-    formData.append("file", file); 
+    formData.append("file", file);
 
     try {
-        // --- FIX: Point to Localhost ---
+        // --- THE KEY FIX: Explicit IP and Port ---
         const response = await fetch("http://127.0.0.1:8000/analyze", {
             method: "POST",
             body: formData
         });
 
         if (!response.ok) {
-            throw new Error(`API Error: ${response.status}`);
+            throw new Error(`Server Error: ${response.status}`);
         }
-        
-        // Get Data from API
-        const data = await response.json();
-        console.log("API Response:", data); 
 
-        // Update UI with Real Data
+        const data = await response.json();
+        console.log("Success:", data);
+
         locationText.textContent = data.location || "Unknown";
-        situationText.textContent = data.situation || "Analyzing context...";
+        situationText.textContent = data.situation || "Analyzing...";
         
-        // Handle Evidence (Array or String)
+        let conf = data.confidence;
+        if (conf && conf < 1) conf = Math.round(conf * 100);
+        confidenceText.textContent = conf ? conf + "%" : "--%";
+
         if (Array.isArray(data.evidence)) {
             evidenceText.textContent = data.evidence.join(", ");
         } else {
-            evidenceText.textContent = data.evidence || "No evidence";
+            evidenceText.textContent = data.evidence || "None";
         }
 
         summaryText.textContent = data.summary || "No summary";
-        
-        // --- FIX: Handle key mismatch (transcribed vs transcribe) ---
-        transcribeText.textContent = data.transcribed || data.transcribe || "No transcription";
+        transcribeText.textContent = data.transcribe || "No transcription";
 
-        // Handle Confidence (Format as percentage)
-        let conf = data.confidence;
-        if (conf) {
-            // If API returns 0.94, convert to 94%
-            if (conf < 1) conf = Math.round(conf * 100);
-            confidenceText.textContent = conf + "%";
-        } else {
-            confidenceText.textContent = "--%";
-        }
-
-        // Hide Loading, Show Result
         loading.classList.add("hidden");
         result.classList.remove("hidden");
 
     } catch (error) {
-        console.error("Analysis Failed:", error);
-        loading.innerHTML = `<p style="color:#ff4444;">Error: Could not connect to API. Is backend running?</p>`;
-        alert("Could not connect to backend. Run 'uvicorn app:app --reload' in terminal.");
+        console.error(error);
+        alert(`Connection Failed: ${error.message}\n\nMake sure terminal shows 'Application startup complete'.`);
+        loading.classList.add("hidden");
     }
 }
-
-// --- 4. SAVE LOGIC ---
-saveBtn.addEventListener("click", () => {
-    const historyItem = {
-        location: locationText.textContent,
-        situation: situationText.textContent,
-        confidence: confidenceText.textContent,
-        evidence: evidenceText.textContent,
-        summary: summaryText.textContent,
-        transcribe: transcribeText.textContent,
-        timestamp: new Date().toLocaleString() // Added timestamp for dashboard
-    };
-
-    const existingHistory = JSON.parse(localStorage.getItem("auralisHistory")) || [];
-    existingHistory.unshift(historyItem);
-    localStorage.setItem("auralisHistory", JSON.stringify(existingHistory));
-
-    const originalHTML = saveBtn.innerHTML;
-    saveBtn.innerHTML = '<i class="fa-solid fa-check"></i> Saved!';
-    saveBtn.style.background = "#28a745";
-    
-    setTimeout(() => {
-        saveBtn.innerHTML = originalHTML;
-        saveBtn.style.background = "#7f3cff";
-    }, 2000);
-});
