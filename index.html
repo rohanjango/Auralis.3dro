@@ -98,6 +98,7 @@
               <div id="locationText" style="font-weight:600; font-size:15px;">...</div>
           </div>
         </div>
+
         <div class="result-item">
           <i class="fa-solid fa-brain fa-lg"></i>
           <div style="margin-left:10px;">
@@ -105,20 +106,30 @@
               <div id="situationText" style="font-weight:600; font-size:15px;">...</div>
           </div>
         </div>
+
         <div class="result-item">
-          <i class="fa-solid fa-volume-high fa-lg"></i>
+          <i class="fa-solid fa-magnifying-glass fa-lg"></i>
           <div style="margin-left:10px;">
-              <small style="color:#666;">Audio Class</small>
-              <div id="classText" style="font-weight:600; font-size:15px;">...</div>
+              <small style="color:#666;">Evidence Detected</small>
+              <div id="evidenceText" style="font-weight:600; font-size:15px;">...</div>
           </div>
         </div>
+      </div>
+
+      <div style="background:#181818; padding:15px; border-radius:10px; margin-top:10px;">
+          <small style="color:#666; display:block; margin-bottom:5px;">AI Summary</small>
+          <p id="summaryText" style="font-size:14px; line-height:1.5; color:#ddd;">...</p>
+      </div>
+
+      <div style="background:#181818; padding:15px; border-radius:10px;">
+          <small style="color:#666; display:block; margin-bottom:5px;">Transcription</small>
+          <p id="transcribeText" style="font-size:14px; line-height:1.5; color:#ddd; font-style:italic;">...</p>
       </div>
 
       <button id="saveBtn" class="btn full-width btn-hover">
         <i class="fa-solid fa-floppy-disk"></i> Save Analysis to Dashboard
       </button>
     </div>
-
     <audio id="audio"></audio>
   </section>
 
