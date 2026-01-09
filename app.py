@@ -1,42 +1,36 @@
-
-    
- # ==============================
-# 📦 IMPORTS
 # ==============================
+# 📦 IMPORTS — Tools uthaa raha hu
+# ==============================
+
 from fastapi import FastAPI, UploadFile, File, HTTPException
-from fastapi.middleware.cors import CORSMiddleware # <--- NEW: Fixes connection error
+# --- FIX: Added CORS Middleware ---
+from fastapi.middleware.cors import CORSMiddleware 
 from fastapi.responses import RedirectResponse
+
 import librosa
 import tensorflow as tf
 import tensorflow_hub as hub
 import numpy as np
 import csv
 import requests
-import shutil # <--- NEW: Better file saving
-import os     # <--- NEW: For file cleanup
-import uuid   # <--- NEW: Unique filenames
-
 from transformers import pipeline
+
+# --- FIX: Added for file handling ---
+import shutil
+import os
+import uuid
 
 # ==============================
 # 🚀 FASTAPI APP CREATE
 # ==============================
-app = FastAPI(title="Auralis API")
-# --- ADD THIS SECURITY BLOCK ---
-from fastapi.middleware.cors import CORSMiddleware
 
+app = FastAPI(title="Auralis API")
+
+# --- FIX: ALLOW BROWSER CONNECTION (CORS) ---
+# This is required for the website to talk to the server
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-# -------------------------------
-# --- NEW: ALLOW BROWSER CONNECTION (CORS) ---
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Allows all connections (Frontend, Postman, etc.)
+    allow_origins=["*"],  
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -46,11 +40,17 @@ app.add_middleware(
 def root():
     return RedirectResponse(url="/docs")
 
-# --- LOAD MODELS (Same as before) ---
+# ==============================
+# 🤖 LOAD MODELS
+# ==============================
+
+print("Loading Whisper Model...")
 whisper = pipeline("automatic-speech-recognition", model="openai/whisper-small")
+
+print("Loading YAMNet Model...")
 yamnet = hub.load("https://tfhub.dev/google/yamnet/1")
 
-# --- LOAD LABELS (Same as before) ---
+# Load Labels
 labels_url = "https://raw.githubusercontent.com/tensorflow/models/master/research/audioset/yamnet/yamnet_class_map.csv"
 response = requests.get(labels_url)
 labels = []
@@ -59,26 +59,31 @@ next(reader)
 for row in reader:
     labels.append(row[2])
 
+
 # ==============================
-# 🧠 INFERENCE ENGINE
+# 🧠 INFERENCE ENGINE (DIMAG)
 # ==============================
+
 def analyze_audio(text, sounds):
     text = text.lower()
     sound_labels = [s.lower() for s in sounds.keys()]
 
+    # Keywords
     airport_words = ["flight", "boarding", "gate", "airport"]
     rail_words = ["train", "platform", "coach"]
-    emergency_words = ["help", "fire", "emergency", "police", "accident"]
-    emergency_sounds = ["siren", "scream", "alarm", "glass", "shouting"]
+    emergency_words = ["help", "fire", "emergency","police","accident"]
+    emergency_sounds = ["siren","scream","alarm","glass","shouting"]
     public_sounds = ["crowd", "conversation"]
     vehicle_sounds = ["vehicle", "engine", "traffic", "horn"]
 
+    # Defaults
     location = "Unknown"
     situation = "Unknown"
-    evidence = []
-    confidence = 0.3
+    evidence = []          
+    confidence = 0.3       
     summary = "none"
-
+    
+    # Logic Rules
     is_emergency_text = any(w in text for w in emergency_words)
     is_emergency_sound = any(any(es in s for es in emergency_sounds) for s in sound_labels)
 
@@ -100,73 +105,70 @@ def analyze_audio(text, sounds):
         evidence += ["Vehicle sounds detected"]
         confidence = 0.7
 
+    # Emergency Override
     if is_emergency_text or is_emergency_sound:
-        # Emergency Override
         return {
             "location": location,
             "situation": "Emergency",
             "confidence": 0.95,
-            "confidence_reason": "High confidence due to emergency signals.",
             "evidence": sound_labels,
             "summary": "Emergency situation detected based on distress signals.",
-            "transcribe": text  # <--- FIXED: Matches frontend key
+            "transcribe": text # Fixed key name
         }
-    
-    summary = f"This audio likely comes from a {location.lower()} during {situation.lower()}, inferred from {' '.join(evidence)}."
-    
+
+    summary = f"This audio likely comes from a {location.lower()} during {situation.lower()}."
     return {
         "location": location,
         "situation": situation,
         "confidence": round(confidence, 2),
         "evidence": evidence,
         "summary": summary,
-        "transcribe": text # <--- FIXED: Matches frontend key
+        "transcribe": text # Fixed key name
     }
+
 
 # ==============================
 # 🌐 API ENDPOINT (/analyze)
 # ==============================
+
 @app.post("/analyze")
 async def analyze(file: UploadFile = File(...)):
     print(f"File received: {file.filename}")
 
-    # --- FIX 1: KEEP ORIGINAL FILE EXTENSION ---
-    # If user uploads .m4a, we must save as .m4a so librosa knows how to read it.
+    # --- FIX: Handle File Extensions & Unique Names ---
+    # Prevents crashing if user uploads .m4a or if multiple users upload at once
     file_ext = os.path.splitext(file.filename)[1]
-    if not file_ext:
-        file_ext = ".wav" # Default fallback if no extension found
-    
+    if not file_ext: 
+        file_ext = ".wav"
+        
     unique_filename = f"temp_{uuid.uuid4()}{file_ext}"
 
     try:
-        # Save uploaded file
+        # Save file safely
         with open(unique_filename, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
         # 1. WHISPER (Audio -> Text)
         try:
-            # Whisper handles most formats (m4a, mp3, wav) well
             whisper_result = whisper(unique_filename)
             text = whisper_result["text"]
         except Exception as e:
-            print(f"Whisper Warning: {e}")
-            text = "Could not transcribe."
+            print(f"Whisper Error: {e}")
+            text = "Audio unclear"
 
-        # 2. LOAD AUDIO (The part that was crashing)
+        # 2. LOAD AUDIO (With Error Check)
         try:
-            # Force 16k sample rate for YAMNet
             wav_data, _ = librosa.load(unique_filename, sr=16000)
         except Exception as e:
-            print(f"Librosa Error: {e}")
-            # --- FIX 2: PREVENT CRASH ---
-            # If librosa fails, return a friendly error to the website instead of crashing
+            # If librosa fails (e.g. format not supported), delete file and return error
+            if os.path.exists(unique_filename): os.remove(unique_filename)
             return {
                 "location": "Format Error",
                 "situation": "Unreadable Audio",
                 "confidence": 0,
                 "evidence": ["Try a .WAV file"],
-                "summary": "The system could not read this audio format. Please try converting it to .WAV.",
-                "transcribe": "Error loading audio"
+                "summary": "Could not read audio format.",
+                "transcribe": "Error"
             }
 
         # 3. YAMNet (Audio -> Sounds)
@@ -178,29 +180,20 @@ async def analyze(file: UploadFile = File(...)):
         for i in top_indices:
             raw_sounds[labels[i]] = float(mean_scores[i])
 
-        # Filter keywords
+        # Filter Important Sounds
         keywords = ["speech", "conversation", "crowd", "vehicle", "engine", "traffic", "aircraft", "siren", "glass", "alarm"]
         sounds = {k: v for k, v in raw_sounds.items() if any(x in k.lower() for x in keywords)}
 
-        # Cleanup
+        # --- FIX: Cleanup Temp File ---
         if os.path.exists(unique_filename):
             os.remove(unique_filename)
 
-        # Return results
-        result = analyze_audio(text, sounds)
-        result['transcribe'] = result.pop('transcribed', text)
-        return result
+        # Return Result
+        return analyze_audio(text, sounds)
 
     except Exception as e:
-        # Final Cleanup if major error
+        # Emergency Cleanup
         if os.path.exists(unique_filename):
             os.remove(unique_filename)
-        # Print the real error to terminal so you can see it
-        print(f"CRITICAL ERROR: {e}")
+        print(f"SERVER ERROR: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-    
-    finally:
-        # --- NEW: CLEANUP ---
-        # Always delete the temp file, even if error occurs
-        if os.path.exists(unique_filename):
-            os.remove(unique_filename)
