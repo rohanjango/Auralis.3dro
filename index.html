@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Auralis | Audio Intelligence</title>
   <link rel="stylesheet" href="style.css">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
 
@@ -20,23 +20,44 @@
   </header>
 
   <section class="hero">
+    
+    <div class="sphere-container">
+        <div class="sphere">
+            <div class="ring"></div>
+            <div class="ring"></div>
+            <div class="ring"></div>
+            <div class="ring"></div>
+        </div>
+    </div>
+
     <span class="badge">AI-POWERED LISTENING</span>
 
     <h1>Audio Intelligence<br><span>Reimagined</span></h1>
 
     <p>
       Upload audio to detect environments, situations, and sounds instantly.
-      The next generation of Audio Language Models (ALM) is here.
+      Experience the next generation of Audio Language Models (ALM).
     </p>
 
     <div class="interactive-area">
         
         <div id="uploadContainer" class="upload-container">
             <input type="file" id="audioUpload" accept="audio/*" hidden />
+            
             <button class="btn large-upload-btn btn-hover" onclick="document.getElementById('audioUpload').click()">
-                <i class="fa-solid fa-cloud-arrow-up"></i> Upload Audio to Analyze
+                <i class="fa-solid fa-cloud-arrow-up"></i> Upload Audio File
             </button>
-            <p class="small-text">or drag and drop file here</p>
+            
+            <p class="small-text">or drag and drop MP3, WAV, M4A here</p>
+
+            <div class="cloud-options">
+                <button class="cloud-btn google" onclick="alert('Connecting to Google Drive...')">
+                    <i class="fa-brands fa-google-drive"></i> From Drive
+                </button>
+                <button class="cloud-btn dropbox" onclick="alert('Connecting to Dropbox...')">
+                    <i class="fa-brands fa-dropbox"></i> From Dropbox
+                </button>
+            </div>
         </div>
 
         <div id="playerContainer" class="player-container hidden">
@@ -59,32 +80,42 @@
     </div>
 
     <div id="loading" class="loading hidden">
-      <i class="fa-solid fa-circle-notch fa-spin"></i> Analyzing soundwaves...
+      <i class="fa-solid fa-circle-notch fa-spin" style="color:#7f3cff; font-size:20px;"></i> 
+      <span style="margin-left: 10px; color:#aaa;">Processing neural audio patterns...</span>
     </div>
 
     <div id="result" class="result hidden">
       <div class="result-header">
-        <h4>Analysis Complete</h4>
+        <h4><i class="fa-solid fa-check-circle" style="color:#28a745;"></i> Analysis Complete</h4>
         <span id="confidenceText" class="badge-score">--%</span>
       </div>
       
       <div class="result-grid">
         <div class="result-item">
-          <i class="fa-solid fa-location-dot"></i>
-          <div><small>Location</small><span id="locationText">...</span></div>
+          <i class="fa-solid fa-location-dot fa-lg"></i>
+          <div style="margin-left:10px;">
+              <small style="color:#666;">Detected Location</small>
+              <div id="locationText" style="font-weight:600; font-size:15px;">...</div>
+          </div>
         </div>
         <div class="result-item">
-          <i class="fa-solid fa-brain"></i>
-          <div><small>Context</small><span id="situationText">...</span></div>
+          <i class="fa-solid fa-brain fa-lg"></i>
+          <div style="margin-left:10px;">
+              <small style="color:#666;">Context / Situation</small>
+              <div id="situationText" style="font-weight:600; font-size:15px;">...</div>
+          </div>
         </div>
         <div class="result-item">
-          <i class="fa-solid fa-volume-high"></i>
-          <div><small>Sound Class</small><span id="classText">...</span></div>
+          <i class="fa-solid fa-volume-high fa-lg"></i>
+          <div style="margin-left:10px;">
+              <small style="color:#666;">Audio Class</small>
+              <div id="classText" style="font-weight:600; font-size:15px;">...</div>
+          </div>
         </div>
       </div>
 
       <button id="saveBtn" class="btn full-width btn-hover">
-        <i class="fa-solid fa-floppy-disk"></i> Save to Dashboard
+        <i class="fa-solid fa-floppy-disk"></i> Save Analysis to Dashboard
       </button>
     </div>
 
