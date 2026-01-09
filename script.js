@@ -100,7 +100,7 @@ async function analyzeAudio(file) {
 
     try {
         // --- THE KEY FIX: Explicit IP and Port ---
-        const response = await fetch("http://127.0.0.1:8000/analyze", {
+        const response = await fetch("http://127.0.0.1:8001/analyze", {
             method: "POST",
             body: formData
         });
