@@ -17,7 +17,6 @@ const confidenceText = document.getElementById("confidenceText");
 const evidenceText = document.getElementById("evidenceText");
 const summaryText = document.getElementById("summaryText");
 const transcribeText = document.getElementById("transcribeText");
-const saveBtn = document.getElementById("saveBtn");
 
 // File Inputs
 const audioUpload = document.getElementById("audioUpload");
@@ -31,24 +30,8 @@ audioUpload.addEventListener("change", function() {
     }
 });
 
-// Support Drag and Drop
-uploadContainer.addEventListener("dragover", (e) => {
-    e.preventDefault();
-    uploadContainer.style.borderColor = "#7f3cff";
-});
-uploadContainer.addEventListener("dragleave", (e) => {
-    e.preventDefault();
-    uploadContainer.style.borderColor = "#333";
-});
-uploadContainer.addEventListener("drop", (e) => {
-    e.preventDefault();
-    uploadContainer.style.borderColor = "#333";
-    if (e.dataTransfer.files.length > 0) {
-        initPlayer(e.dataTransfer.files[0]);
-    }
-});
-
 function initPlayer(file) {
+    console.log("File loaded:", file.name); // Debug
     currentFile = file;
     fileNameDisplay.textContent = file.name;
     const fileURL = URL.createObjectURL(file);
@@ -64,6 +47,10 @@ function initPlayer(file) {
 playBtn.addEventListener("click", () => {
     // 1. Trigger analysis immediately
     if (result.classList.contains("hidden")) {
+        if (!currentFile) {
+            alert("Error: No file selected. Please reload page and upload again.");
+            return;
+        }
         analyzeAudio(currentFile);
     }
 
@@ -90,8 +77,7 @@ audio.addEventListener("ended", () => {
 
 // --- 3. REAL API INTEGRATION ---
 async function analyzeAudio(file) {
-    if (!file) return;
-
+    // Show spinner
     loading.classList.remove("hidden");
     result.classList.add("hidden");
     
@@ -99,7 +85,9 @@ async function analyzeAudio(file) {
     formData.append("file", file);
 
     try {
-        // --- THE KEY FIX: Explicit IP and Port ---
+        // ALERT USER: STARTING
+        console.log("Sending request to server...");
+
         const response = await fetch("http://127.0.0.1:8001/analyze", {
             method: "POST",
             body: formData
@@ -112,6 +100,7 @@ async function analyzeAudio(file) {
         const data = await response.json();
         console.log("Success:", data);
 
+        // Update UI
         locationText.textContent = data.location || "Unknown";
         situationText.textContent = data.situation || "Analyzing...";
         
@@ -133,7 +122,7 @@ async function analyzeAudio(file) {
 
     } catch (error) {
         console.error(error);
-        alert(`Connection Failed: ${error.message}\n\nMake sure terminal shows 'Application startup complete'.`);
+        alert(`Connection Failed: ${error.message}\n\nMake sure terminal is running on Port 8001.`);
         loading.classList.add("hidden");
     }
 }
