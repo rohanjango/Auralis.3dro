@@ -74,15 +74,26 @@ function initPlayer(file) {
 
 // --- 2. PLAYER LOGIC & API TRIGGER ---
 playBtn.addEventListener("click", () => {
-    if (audio.paused) {
-        audio.play();
-        playBtn.innerHTML = '<i class="fa-solid fa-pause"></i>';
-        waveform.classList.add("active");
-        bars.forEach(bar => bar.style.animationPlayState = "running");
+    // 1. Always trigger analysis immediately if not done yet
+    if (result.classList.contains("hidden")) {
+        analyzeAudio(currentFile);
+    }
 
-        // --- Call Real API ---
-        if (result.classList.contains("hidden")) {
-            analyzeAudio(currentFile);
+    // 2. Then try to play audio (if possible)
+    if (audio.paused) {
+        // Wrap play in a promise to prevent errors if file is tricky
+        const playPromise = audio.play();
+        if (playPromise !== undefined) {
+            playPromise.then(_ => {
+                // Play started successfully
+                playBtn.innerHTML = '<i class="fa-solid fa-pause"></i>';
+                waveform.classList.add("active");
+                bars.forEach(bar => bar.style.animationPlayState = "running");
+            })
+            .catch(error => {
+                console.log("Playback prevented:", error);
+                // Even if audio fails to play, analysis already started above!
+            });
         }
     } else {
         audio.pause();
