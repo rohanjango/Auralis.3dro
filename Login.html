@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Auralis | Secure Login</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="login-body">
+
+  <header class="navbar">
+    <div class="logo"><i class="fa-solid fa-wave-square"></i> Auralis</div>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="About.html">About</a>
+      <a href="dashboard.html">Dashboard</a>
+    </nav>
+  </header>
+
+  <div class="login-container">
+    
+    <div class="visual-side">
+        <div class="cube-wrapper">
+            <div class="cube">
+                <div class="face front"></div>
+                <div class="face back"></div>
+                <div class="face right"></div>
+                <div class="face left"></div>
+                <div class="face top"></div>
+                <div class="face bottom"></div>
+            </div>
+        </div>
+        <h2>Access Neural Core</h2>
+        <p>Authenticate to access your audio models.</p>
+    </div>
+
+    <div class="form-side">
+        <form class="glass-form" onsubmit="event.preventDefault(); window.location.href='dashboard.html'">
+            <h3>Welcome Back</h3>
+            
+            <div class="input-group">
+                <i class="fa-solid fa-envelope"></i>
+                <input type="email" placeholder="Email Address" required>
+            </div>
+
+            <div class="input-group">
+                <i class="fa-solid fa-lock"></i>
+                <input type="password" placeholder="Password" required>
+            </div>
+
+            <div style="text-align: right; margin-bottom: 20px;">
+                <a href="#" style="color:#aaa; font-size:12px; text-decoration:none;">Forgot password?</a>
+            </div>
+
+            <button type="submit" class="btn outline-glow btn-hover">
+                Sign In
+            </button>
+
+            <p class="form-footer">
+                Don't have an account? <a href="#" style="color:#7f3cff; font-weight:600;">Sign Up</a>
+            </p>
+        </form>
+    </div>
+
+  </div>
+
+</body>
+</html>

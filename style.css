@@ -328,3 +328,269 @@ body {
 }
 .tech-item h4 { color: #fff; margin-bottom: 5px; }
 .tech-item span { color: #666; font-size: 12px; }
+/* --- FIX 1: Better Gap for Result Box --- */
+.result {
+    display: flex;
+    flex-direction: column;
+    gap: 25px; /* Adds space between all items inside the box */
+    padding-bottom: 30px; /* Extra breathing room at the bottom */
+}
+
+.result-grid {
+    margin-bottom: 10px; /* Push the grid away from the save button */
+}
+
+/* --- FIX 2: "Clear History" Button Styling --- */
+/* Matches the "Your Data" badge style but interactive */
+#clearBtn {
+    background: rgba(255, 50, 50, 0.1); /* Subtle red tint */
+    border: 1px solid #ff4444;
+    color: #ffaaaa;
+    padding: 8px 18px;
+    border-radius: 30px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    letter-spacing: 0.5px;
+}
+
+#clearBtn:hover {
+    background: #ff4444;
+    color: white;
+    box-shadow: 0 0 15px rgba(255, 68, 68, 0.4);
+    transform: translateY(-2px);
+}
+/* --- LOGIN PAGE STYLES --- */
+.login-body {
+    overflow: hidden; /* Prevents scrollbars during 3D rotation */
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.login-container {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 10%;
+    gap: 100px; /* Space between 3D object and Form */
+}
+
+/* 3D Cube Animation */
+.visual-side {
+    text-align: center;
+    perspective: 1000px;
+}
+.visual-side h2 { font-size: 32px; margin-bottom: 10px; margin-top: 40px;}
+.visual-side p { color: #888; }
+
+.cube-wrapper {
+    width: 150px;
+    height: 150px;
+    margin: 0 auto;
+    position: relative;
+    transform-style: preserve-3d;
+    animation: floating 3s ease-in-out infinite;
+}
+
+.cube {
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    transform-style: preserve-3d;
+    animation: rotateCube 10s infinite linear;
+}
+
+.face {
+    position: absolute;
+    width: 150px;
+    height: 150px;
+    border: 2px solid #7f3cff;
+    background: rgba(127, 60, 255, 0.1);
+    box-shadow: 0 0 20px rgba(127, 60, 255, 0.2);
+}
+
+.front  { transform: translateZ(75px); }
+.back   { transform: rotateY(180deg) translateZ(75px); }
+.right  { transform: rotateY(90deg) translateZ(75px); }
+.left   { transform: rotateY(-90deg) translateZ(75px); }
+.top    { transform: rotateX(90deg) translateZ(75px); }
+.bottom { transform: rotateX(-90deg) translateZ(75px); }
+
+@keyframes rotateCube {
+    from { transform: rotateX(0deg) rotateY(0deg); }
+    to { transform: rotateX(360deg) rotateY(360deg); }
+}
+@keyframes floating {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-20px); }
+}
+
+/* Login Form Styling */
+.glass-form {
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(15px);
+    padding: 40px;
+    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    width: 350px;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+}
+
+.glass-form h3 { margin-bottom: 25px; text-align: center; }
+
+.input-group {
+    position: relative;
+    margin-bottom: 15px;
+}
+.input-group i {
+    position: absolute;
+    left: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #7f3cff;
+}
+.input-group input {
+    width: 100%;
+    padding: 12px 12px 12px 45px; /* Space for icon */
+    background: rgba(0,0,0,0.3);
+    border: 1px solid #333;
+    border-radius: 8px;
+    color: white;
+    outline: none;
+    transition: 0.3s;
+}
+.input-group input:focus {
+    border-color: #7f3cff;
+    background: rgba(0,0,0,0.5);
+}
+
+.form-footer {
+    text-align: center;
+    margin-top: 15px;
+    font-size: 12px;
+    color: #666;
+}
+.form-footer a { color: #aaa; text-decoration: none; }
+.form-footer a:hover { color: #fff; }
+
+/* Responsive: stack vertically on phones*/
+@media (max-width: 768px) {
+    .login-container {
+        flex-direction: column;
+        gap: 50px;
+    }
+}
+/* --- DASHBOARD UPDATES --- */
+
+/* 1. Organize the Card Header */
+.result-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.meta-left {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.timestamp {
+    color: #666;
+    font-size: 12px;
+    font-family: monospace;
+}
+
+/* 2. Mini Waveform Visualization */
+.mini-waveform {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    height: 15px;
+    width: 60px;
+}
+
+.mini-waveform span {
+    width: 3px;
+    background: #444;
+    border-radius: 1px;
+    display: block;
+    /* Static visual, but you can animate if desired */
+    opacity: 0.7;
+}
+
+/* 3. Result Item Layout for Copy Button */
+.result-item {
+    position: relative; /* Needed for positioning the button */
+    display: flex;
+    align-items: center; /* Center items vertically */
+    gap: 12px;
+    padding-right: 40px; /* Make space for the copy button */
+}
+
+.content-wrapper {
+    flex: 1; /* Takes up remaining space */
+    display: flex;
+    flex-direction: column;
+}
+
+/* 4. The Copy Button */
+.copy-btn {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: transparent;
+    border: none;
+    color: #555;
+    cursor: pointer;
+    padding: 5px;
+    font-size: 14px;
+    transition: 0.2s;
+    opacity: 0; /* Hidden by default */
+}
+
+/* Show button when hovering over the item */
+.result-item:hover .copy-btn {
+    opacity: 1;
+}
+
+.copy-btn:hover {
+    color: #fff;
+    transform: translateY(-50%) scale(1.1);
+}
+
+/* Fix for Grid Gap mentioned previously */
+.result-grid {
+    gap: 20px; /* Better spacing between columns */
+}
+/* --- NEW: Sign In Button (Your Data Style) --- */
+.outline-glow {
+    background: transparent;           /* No solid background */
+    border: 1px solid #7f3cff;         /* Purple border */
+    color: #caa7ff;                    /* Light purple text */
+    padding: 12px;
+    width: 100%;
+    border-radius: 50px;               /* Pill shape */
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;         /* Makes text uppercase like badge */
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 0 10px rgba(127, 60, 255, 0.2); /* Subtle initial glow */
+}
+
+/* Hover Effect: Brighter glow */
+.outline-glow:hover {
+    background: rgba(127, 60, 255, 0.1); /* Slight purple tint on hover */
+    color: #fff;
+    box-shadow: 0 0 20px rgba(127, 60, 255, 0.6);
+    transform: translateY(-2px);
+}
