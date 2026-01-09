@@ -139,3 +139,5 @@ async def analyze(file: UploadFile = File(...)):
         if os.path.exists(unique_filename): os.remove(unique_filename)
         print(f"ERROR: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+        if __name__ == "__main__":
+             app.run(host="127.0.0.1", port=8001, debug=True)
