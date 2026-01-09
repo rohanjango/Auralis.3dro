@@ -1,5 +1,5 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
-from fastapi.middleware.cors import CORSMiddleware # <--- SECURITY TOOL
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 import librosa
 import tensorflow as tf
@@ -15,12 +15,11 @@ from transformers import pipeline
 # 1. Create App
 app = FastAPI(title="Auralis API")
 
-# 2. ADD SECURITY PASS (CORS) - CRITICAL STEP
-# --- CORS SECURITY PASS ---
+# 2. ADD SECURITY PASS (CORS) - FIXED VERSION
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],     # Allows all websites
-    allow_credentials=False, # <--- CHANGE THIS TO FALSE (Fixes the block)
+    allow_credentials=False, # <--- CHANGED TO FALSE (Fixes the browser block)
     allow_methods=["*"],
     allow_headers=["*"],
 )
