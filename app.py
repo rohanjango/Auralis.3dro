@@ -21,7 +21,6 @@ from transformers import pipeline
 app = FastAPI(title="Auralis API")
 
 # --- SECURITY PASS (CORS) ---
-# This allows the website to talk to the server
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -139,7 +138,6 @@ async def analyze(file: UploadFile = File(...)):
         try:
             wav_data, _ = librosa.load(unique_filename, sr=16000)
         except Exception as e:
-            # If librosa fails, return polite error
             if os.path.exists(unique_filename): os.remove(unique_filename)
             return {
                 "location": "Format Error",
