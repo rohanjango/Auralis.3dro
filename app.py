@@ -1,3 +1,6 @@
+# ==============================
+# 📦 IMPORTS
+# ==============================
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
@@ -12,14 +15,17 @@ import os
 import uuid
 from transformers import pipeline
 
-# 1. Create App
+# ==============================
+# 🚀 FASTAPI APP & SECURITY
+# ==============================
 app = FastAPI(title="Auralis API")
 
-# 2. ADD SECURITY PASS (CORS) - FIXED VERSION
+# --- SECURITY PASS (CORS) ---
+# This allows the website to talk to the server
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],     # Allows all websites
-    allow_credentials=False, # <--- CHANGED TO FALSE (Fixes the browser block)
+    allow_origins=["*"],
+    allow_credentials=False, # Must be False when using "*"
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -28,12 +34,16 @@ app.add_middleware(
 def root():
     return RedirectResponse(url="/docs")
 
-# 3. Load Models
-print("Loading Models...")
+# ==============================
+# 🤖 LOAD MODELS
+# ==============================
+print("Loading Whisper Model...")
 whisper = pipeline("automatic-speech-recognition", model="openai/whisper-small")
+
+print("Loading YAMNet Model...")
 yamnet = hub.load("https://tfhub.dev/google/yamnet/1")
 
-# Load Labels
+# Load Class Labels
 labels_url = "https://raw.githubusercontent.com/tensorflow/models/master/research/audioset/yamnet/yamnet_class_map.csv"
 response = requests.get(labels_url)
 labels = []
@@ -42,15 +52,17 @@ next(reader)
 for row in reader:
     labels.append(row[2])
 
-# 4. Logic Engine
+# ==============================
+# 🧠 LOGIC ENGINE
+# ==============================
 def analyze_audio(text, sounds):
     text = text.lower()
     sound_labels = [s.lower() for s in sounds.keys()]
 
     airport_words = ["flight", "boarding", "gate", "airport"]
     rail_words = ["train", "platform", "coach"]
-    emergency_words = ["help", "fire", "emergency","police","accident"]
-    emergency_sounds = ["siren","scream","alarm","glass","shouting"]
+    emergency_words = ["help", "fire", "emergency", "police", "accident"]
+    emergency_sounds = ["siren", "scream", "alarm", "glass", "shouting"]
     public_sounds = ["crowd", "conversation"]
     vehicle_sounds = ["vehicle", "engine", "traffic", "horn"]
 
@@ -85,7 +97,7 @@ def analyze_audio(text, sounds):
             "situation": "Emergency",
             "confidence": 0.95,
             "evidence": sound_labels,
-            "summary": "Emergency detected via audio/text analysis.",
+            "summary": "Emergency situation detected.",
             "transcribe": text
         }
     
@@ -99,45 +111,66 @@ def analyze_audio(text, sounds):
         "transcribe": text
     }
 
-# 5. API Endpoint
+# ==============================
+# 🌐 API ENDPOINT
+# ==============================
 @app.post("/analyze")
 async def analyze(file: UploadFile = File(...)):
     print(f"File received: {file.filename}")
+
+    # 1. Handle File Extension
     file_ext = os.path.splitext(file.filename)[1]
     if not file_ext: file_ext = ".wav"
     unique_filename = f"temp_{uuid.uuid4()}{file_ext}"
 
     try:
+        # 2. Save File
         with open(unique_filename, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
+        # 3. Transcribe
         try:
             whisper_result = whisper(unique_filename)
             text = whisper_result["text"]
-        except: text = "Audio unclear"
+        except:
+            text = "Transcription failed"
 
+        # 4. Analyze Sound (Load as WAV 16k)
         try:
             wav_data, _ = librosa.load(unique_filename, sr=16000)
-        except:
+        except Exception as e:
+            # If librosa fails, return polite error
             if os.path.exists(unique_filename): os.remove(unique_filename)
-            return {"location": "Format Error", "situation": "Unreadable Audio", "confidence": 0, "evidence": ["Use .WAV"], "summary": "Audio format error.", "transcribe": "Error"}
+            return {
+                "location": "Format Error",
+                "situation": "Unreadable Audio",
+                "confidence": 0,
+                "evidence": ["Try converting to .WAV"],
+                "summary": "Could not process audio format. Windows needs FFmpeg for .m4a files.",
+                "transcribe": "Error"
+            }
 
+        # 5. YAMNet Inference
         scores, _, _ = yamnet(wav_data)
         mean_scores = tf.reduce_mean(scores, axis=0).numpy()
         top_indices = np.argsort(mean_scores)[-10:][::-1]
 
         raw_sounds = {}
-        for i in top_indices: raw_sounds[labels[i]] = float(mean_scores[i])
+        for i in top_indices:
+            raw_sounds[labels[i]] = float(mean_scores[i])
 
         keywords = ["speech", "conversation", "crowd", "vehicle", "engine", "traffic", "aircraft", "siren", "glass", "alarm"]
         sounds = {k: v for k, v in raw_sounds.items() if any(x in k.lower() for x in keywords)}
 
-        if os.path.exists(unique_filename): os.remove(unique_filename)
-        return analyze_audio(text, sounds)
+        # 6. Cleanup & Return
+        if os.path.exists(unique_filename):
+            os.remove(unique_filename)
+
+        result = analyze_audio(text, sounds)
+        return result
 
     except Exception as e:
-        if os.path.exists(unique_filename): os.remove(unique_filename)
-        print(f"ERROR: {e}")
+        if os.path.exists(unique_filename):
+            os.remove(unique_filename)
+        print(f"SERVER ERROR: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-        if __name__ == "__main__":
-             app.run(host="127.0.0.1", port=8001, debug=True)
