@@ -1,3 +1,4 @@
+
 const audio = document.getElementById("audio");
 const playBtn = document.getElementById("playBtn");
 const bars = document.querySelectorAll(".waveform span");
@@ -13,14 +14,16 @@ const result = document.getElementById("result");
 // Data Elements
 const locationText = document.getElementById("locationText");
 const situationText = document.getElementById("situationText");
-const classText = document.getElementById("classText");
-const confidenceText = document.getElementById("confidenceText");
+const confidenceText = document.getElementById("confidenceText"); 
+const evidenceText = document.getElementById("evidenceText");
+const summaryText = document.getElementById("summaryText");
+const transcribeText = document.getElementById("transcribeText");
 const saveBtn = document.getElementById("saveBtn");
 
 // File Inputs
 const audioUpload = document.getElementById("audioUpload");
 
-// --- NEW: Variable to store the actual file for the API ---
+// --- Variable to store the actual file for the API ---
 let currentFile = null;
 
 // --- 1. HANDLE FILE UPLOAD ---
@@ -77,7 +80,7 @@ playBtn.addEventListener("click", () => {
         waveform.classList.add("active");
         bars.forEach(bar => bar.style.animationPlayState = "running");
 
-        // --- CHANGED: Call Real API instead of Simulation ---
+        // --- Call Real API ---
         if (result.classList.contains("hidden")) {
             analyzeAudio(currentFile);
         }
@@ -95,20 +98,21 @@ audio.addEventListener("ended", () => {
     bars.forEach(bar => bar.style.animationPlayState = "paused");
 });
 
-// --- 3. REAL API INTEGRATION (Replaces Simulation) ---
+// --- 3. REAL API INTEGRATION (UPDATED) ---
 async function analyzeAudio(file) {
     if (!file) return;
 
     // Show Loading Animation
     loading.classList.remove("hidden");
+    result.classList.add("hidden"); // Ensure result is hidden while loading
     
     // Create Form Data to send file
     const formData = new FormData();
-    formData.append("file", file); // API expects key 'file'
+    formData.append("file", file); 
 
     try {
-        // --- THE REAL API CALL ---
-        const response = await fetch("https://animated-sniffle-97xp45r7j74xc7666-8000.app.github.dev/analyze", {
+        // --- FIX: Point to Localhost ---
+        const response = await fetch("http://127.0.0.1:8000/analyze", {
             method: "POST",
             body: formData
         });
@@ -116,18 +120,27 @@ async function analyzeAudio(file) {
         if (!response.ok) {
             throw new Error(`API Error: ${response.status}`);
         }
-
+        
         // Get Data from API
         const data = await response.json();
-        console.log("API Response:", data); // Check console if data is missing
+        console.log("API Response:", data); 
 
         // Update UI with Real Data
-        // (Note: I am assuming the API returns keys like location, situation, etc. 
-        // If the keys are different, e.g. 'predicted_class', change them below)
         locationText.textContent = data.location || "Unknown";
         situationText.textContent = data.situation || "Analyzing context...";
-        classText.textContent = data.audio_class || data.class || "Detected Sound";
         
+        // Handle Evidence (Array or String)
+        if (Array.isArray(data.evidence)) {
+            evidenceText.textContent = data.evidence.join(", ");
+        } else {
+            evidenceText.textContent = data.evidence || "No evidence";
+        }
+
+        summaryText.textContent = data.summary || "No summary";
+        
+        // --- FIX: Handle key mismatch (transcribed vs transcribe) ---
+        transcribeText.textContent = data.transcribed || data.transcribe || "No transcription";
+
         // Handle Confidence (Format as percentage)
         let conf = data.confidence;
         if (conf) {
@@ -144,19 +157,21 @@ async function analyzeAudio(file) {
 
     } catch (error) {
         console.error("Analysis Failed:", error);
-        loading.innerHTML = `<p style="color:#ff4444;">Error: Could not connect to API.</p>`;
+        loading.innerHTML = `<p style="color:#ff4444;">Error: Could not connect to API. Is backend running?</p>`;
+        alert("Could not connect to backend. Run 'uvicorn app:app --reload' in terminal.");
     }
 }
 
 // --- 4. SAVE LOGIC ---
 saveBtn.addEventListener("click", () => {
     const historyItem = {
-        id: Date.now(),
         location: locationText.textContent,
         situation: situationText.textContent,
-        soundType: classText.textContent,
         confidence: confidenceText.textContent,
-        timestamp: new Date().toLocaleString()
+        evidence: evidenceText.textContent,
+        summary: summaryText.textContent,
+        transcribe: transcribeText.textContent,
+        timestamp: new Date().toLocaleString() // Added timestamp for dashboard
     };
 
     const existingHistory = JSON.parse(localStorage.getItem("auralisHistory")) || [];
