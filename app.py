@@ -22,7 +22,17 @@ from transformers import pipeline
 # 🚀 FASTAPI APP CREATE
 # ==============================
 app = FastAPI(title="Auralis API")
+# --- ADD THIS SECURITY BLOCK ---
+from fastapi.middleware.cors import CORSMiddleware
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+# -------------------------------
 # --- NEW: ALLOW BROWSER CONNECTION (CORS) ---
 app.add_middleware(
     CORSMiddleware,
