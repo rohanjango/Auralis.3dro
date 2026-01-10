@@ -23,8 +23,9 @@ app = FastAPI(title="Auralis API")
 # --- SECURITY PASS (CORS) ---
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False, # Must be False when using "*"
+    # This specific address is safer and works better with browsers than "*"
+    allow_origins=["http://127.0.0.1:5500", "http://localhost:5500"], 
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
