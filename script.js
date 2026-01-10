@@ -8,102 +8,249 @@ const playerContainer = document.getElementById("playerContainer");
 const loading = document.getElementById("loading");
 const result = document.getElementById("result");
 const audioUpload = document.getElementById("audioUpload");
+const saveBtn = document.getElementById("saveBtn");
 
 let currentFile = null;
+let alreadyAnalyzed = false;
+let currentAnalysisData = null;
 
-// --- 1. HANDLE FILE UPLOAD ---
+const API_URLS = [
+    "http://127.0.0.1:8001/analyze",
+    "http://localhost:8001/analyze"
+];
+
+// --- FILE UPLOAD HANDLER ---
 audioUpload.addEventListener("change", function() {
-    if (this.files.length > 0) initPlayer(this.files[0]);
+    if (this.files.length > 0) {
+        initPlayer(this.files[0]);
+    }
 });
 
 function initPlayer(file) {
     currentFile = file;
+    alreadyAnalyzed = false;
+    currentAnalysisData = null;
     fileNameDisplay.textContent = file.name;
     audio.src = URL.createObjectURL(file);
+    audio.load();
+
     uploadContainer.classList.add("hidden");
     playerContainer.classList.remove("hidden");
     result.classList.add("hidden");
     playBtn.innerHTML = '<i class="fa-solid fa-play"></i>';
 }
 
-// --- 2. PLAY BUTTON LOGIC ---
-playBtn.addEventListener("click", () => {
-    // A. Trigger Analysis
-    if (result.classList.contains("hidden")) {
-        if (!currentFile) return alert("Please upload a file first.");
-        analyzeAudio(currentFile);
-    }
-    // B. Toggle Audio
-    if (audio.paused) {
-        audio.play().then(() => {
-            playBtn.innerHTML = '<i class="fa-solid fa-pause"></i>';
-            waveform.classList.add("active");
-            bars.forEach(b => b.style.animationPlayState = "running");
-        }).catch(e => console.error("Audio Play Error:", e));
-    } else {
-        audio.pause();
-        playBtn.innerHTML = '<i class="fa-solid fa-play"></i>';
-        waveform.classList.remove("active");
-        bars.forEach(b => b.style.animationPlayState = "paused");
-    }
+// --- PLAY BUTTON LOGIC ---
+playBtn.addEventListener("click", async () => {
+  if (!currentFile) {
+    alert("Please upload a file first.");
+    return;
+  }
+
+  if (!alreadyAnalyzed) {
+    await analyzeAudio(currentFile);
+    alreadyAnalyzed = true;
+  }
+
+  if (audio.paused) {
+    audio.play().then(() => {
+      playBtn.innerHTML = '<i class="fa-solid fa-pause"></i>';
+      waveform.classList.add("active");
+      bars.forEach(b => b.style.animationPlayState = "running");
+    }).catch(e => console.error("Audio Play Error:", e));
+  } else {
+    audio.pause();
+    playBtn.innerHTML = '<i class="fa-solid fa-play"></i>';
+    waveform.classList.remove("active");
+    bars.forEach(b => b.style.animationPlayState = "paused");
+  }
 });
 
-// --- 3. ANALYSIS LOGIC (With Safety Checks) ---
+audio.addEventListener("ended", () => {
+  playBtn.innerHTML = '<i class="fa-solid fa-play"></i>';
+  waveform.classList.remove("active");
+  bars.forEach(b => b.style.animationPlayState = "paused");
+});
+
+// --- ANALYSIS FUNCTION ---
 async function analyzeAudio(file) {
-    loading.classList.remove("hidden");
-    result.classList.add("hidden");
-    
-    const formData = new FormData();
-    formData.append("file", file);
+  loading.classList.remove("hidden");
+  result.classList.add("hidden");
 
+  let lastError = null;
+
+  // ✅ FIX: create fresh FormData INSIDE the loop (no consumed body bug)
+  for (let API_URL of API_URLS) {
     try {
-        console.log("Sending to server...");
-        // Ensure Port is 8001
-        const response = await fetch("http://127.0.0.1:8001/analyze", {
-            method: "POST",
-            body: formData
-        });
+      console.log(`Trying API: ${API_URL}`);
 
-        if (!response.ok) throw new Error(`Server Error: ${response.status}`);
+      const formData = new FormData();
+      formData.append("file", file);
 
-        const data = await response.json();
-        console.log("Success:", data);
+      const response = await fetch(API_URL, {
+        method: "POST",
+        body: formData,
+        mode: "cors",
+        cache: "no-store", // ✅ prevents caching weirdness
+      });
 
-        // --- SAFETY CHECK: Find Elements Just-In-Time ---
-        const els = {
-            loc: document.getElementById("locationText"),
-            sit: document.getElementById("situationText"),
-            conf: document.getElementById("confidenceText"),
-            evi: document.getElementById("evidenceText"),
-            sum: document.getElementById("summaryText"),
-            tran: document.getElementById("transcribeText")
-        };
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
 
-        // If elements are missing, alert user to fix HTML
-        if (!els.evi || !els.sum || !els.tran) {
-            alert("CRITICAL ERROR: HTML Elements are missing!\nPlease SAVE your index.html file and Refresh.");
-            loading.classList.add("hidden");
-            return;
-        }
+      const data = await response.json();
+      console.log("Success:", data);
 
-        // Fill Data
-        els.loc.textContent = data.location || "Unknown";
-        els.sit.textContent = data.situation || "Analyzing...";
-        
-        let conf = data.confidence;
-        if (conf && conf < 1) conf = Math.round(conf * 100);
-        els.conf.textContent = conf ? conf + "%" : "--%";
+      // ✅ keep analysis data for save button
+      currentAnalysisData = data;
 
-        els.evi.textContent = Array.isArray(data.evidence) ? data.evidence.join(", ") : (data.evidence || "None");
-        els.sum.textContent = data.summary || "No summary";
-        els.tran.textContent = data.transcribe || "No transcription";
+      // ✅ Fill UI safely
+      document.getElementById("locationText").textContent = data.location || "Unknown";
+      document.getElementById("situationText").textContent = data.situation || "Analysis Complete";
 
-        loading.classList.add("hidden");
-        result.classList.remove("hidden");
+      let conf = data.confidence;
+      if (typeof conf === "number") {
+        if (conf <= 1) conf = Math.round(conf * 100);
+        else conf = Math.round(conf);
+        document.getElementById("confidenceText").textContent = conf + "%";
+      } else {
+        document.getElementById("confidenceText").textContent = "--%";
+      }
+
+      document.getElementById("evidenceText").textContent = Array.isArray(data.evidence)
+        ? data.evidence.join(", ")
+        : (data.evidence || "None");
+
+      document.getElementById("summaryText").textContent = data.summary || "No summary";
+      document.getElementById("transcribeText").textContent = data.transcribe || "No transcription";
+
+      loading.classList.add("hidden");
+      result.classList.remove("hidden");
+      return; // ✅ stop loop on success
 
     } catch (error) {
-        console.error(error);
-        alert(`Connection Error: ${error.message}\nCheck Terminal Port (8001).`);
-        loading.classList.add("hidden");
+      console.warn(`Failed with ${API_URL}:`, error.message);
+      lastError = error;
     }
+  }
+
+  loading.classList.add("hidden");
+
+  // ✅ FIX: correct command message
+  alert(
+    "Backend Connection Failed!\n\n" +
+    "Solutions:\n" +
+    "1) Run backend:\n" +
+    "   py -m uvicorn app:app --reload --host 127.0.0.1 --port 8001\n\n" +
+    "2) Check backend docs:\n" +
+    "   http://127.0.0.1:8001/docs\n\n" +
+    "Error: " + (lastError ? lastError.message : "Unknown")
+  );
+}
+
+// --- SAVE TO DASHBOARD ---
+saveBtn.addEventListener("click", function() {
+    if (!currentAnalysisData) {
+        alert("No analysis data to save!");
+        return;
+    }
+
+    let history;
+    try {
+      history = JSON.parse(localStorage.getItem("auralisHistory")) || [];
+      if (!Array.isArray(history)) history = [];
+    } catch {
+      history = [];
+    }
+
+    const now = new Date();
+    const timestamp = now.toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+
+    const historyItem = {
+        timestamp: timestamp,
+        location: currentAnalysisData.location || "Unknown",
+        situation: currentAnalysisData.situation || "Unknown",
+        confidence: document.getElementById("confidenceText").textContent || "--%",
+        soundType: Array.isArray(currentAnalysisData.evidence)
+            ? currentAnalysisData.evidence[0]
+            : "Audio Analysis",
+        fileName: currentFile ? currentFile.name : "unknown.wav"
+    };
+
+    history.unshift(historyItem);
+
+    if (history.length > 50) {
+        history = history.slice(0, 50);
+    }
+
+    localStorage.setItem("auralisHistory", JSON.stringify(history));
+
+    const originalHTML = saveBtn.innerHTML;
+
+    saveBtn.innerHTML = '<i class="fa-solid fa-check"></i> Saved!';
+    saveBtn.style.background = "#28a745";
+
+    setTimeout(() => {
+        saveBtn.innerHTML = originalHTML;
+        saveBtn.style.background = "";
+    }, 2000);
+
+    console.log("Saved to history:", historyItem);
+});
+
+// --- DRAG AND DROP FUNCTIONALITY ---
+const dropZone = document.querySelector('.upload-container');
+
+if (dropZone) {
+  ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+    document.body.addEventListener(eventName, preventDefaults, false);
+  });
+
+  function preventDefaults(e) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+
+  ['dragenter', 'dragover'].forEach(eventName => {
+    dropZone.addEventListener(eventName, highlight, false);
+  });
+
+  ['dragleave', 'drop'].forEach(eventName => {
+    dropZone.addEventListener(eventName, unhighlight, false);
+  });
+
+  function highlight(e) {
+    dropZone.style.borderColor = '#7f3cff';
+    dropZone.style.background = 'rgba(127, 60, 255, 0.1)';
+    dropZone.style.transform = 'scale(1.02)';
+  }
+
+  function unhighlight(e) {
+    dropZone.style.borderColor = '#333';
+    dropZone.style.background = 'rgba(255,255,255,0.01)';
+    dropZone.style.transform = 'scale(1)';
+  }
+
+  dropZone.addEventListener('drop', handleDrop, false);
+
+  function handleDrop(e) {
+    const dt = e.dataTransfer;
+    const files = dt.files;
+
+    if (files.length > 0) {
+      const file = files[0];
+
+      if (file.type.startsWith('audio/')) {
+        initPlayer(file);
+      } else {
+        alert('Please drop an audio file (MP3, WAV, M4A)');
+      }
+    }
+  }
 }
