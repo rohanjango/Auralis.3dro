@@ -14,10 +14,10 @@ let currentFile = null;
 let alreadyAnalyzed = false;
 let currentAnalysisData = null;
 
+// ✅ FIXED: Updated API URLs to match your backend
 const API_URLS = [
-    "http://127.0.0.1:8001/analyze",
-    "http://localhost:8001/analyze"
-];
+    "https://improved-space-halibut-jjgxw7vj4v7rcp6jr-8000.app.github.dev/analyze"
+]
 
 // --- FILE UPLOAD HANDLER ---
 audioUpload.addEventListener("change", function() {
@@ -79,10 +79,10 @@ async function analyzeAudio(file) {
 
   let lastError = null;
 
-  // ✅ FIX: create fresh FormData INSIDE the loop (no consumed body bug)
+  // ✅ FIX: Create fresh FormData for each attempt
   for (let API_URL of API_URLS) {
     try {
-      console.log(`Trying API: ${API_URL}`);
+      console.log(`🔄 Trying API: ${API_URL}`);
 
       const formData = new FormData();
       formData.append("file", file);
@@ -91,7 +91,7 @@ async function analyzeAudio(file) {
         method: "POST",
         body: formData,
         mode: "cors",
-        cache: "no-store", // ✅ prevents caching weirdness
+        cache: "no-store",
       });
 
       if (!response.ok) {
@@ -99,51 +99,70 @@ async function analyzeAudio(file) {
       }
 
       const data = await response.json();
-      console.log("Success:", data);
+      
+      // ✅ FIX: Check if backend returned an error
+      if (data.error) {
+        throw new Error(data.error);
+      }
 
-      // ✅ keep analysis data for save button
+      console.log("✅ Success:", data);
+
+      // ✅ Store analysis data for save button
       currentAnalysisData = data;
 
-      // ✅ Fill UI safely
+      // ✅ FIXED: Handle app2.py response format
+      // app2.py returns: location, situation, confidence, evidence, summary, transcribed
+      
       document.getElementById("locationText").textContent = data.location || "Unknown";
       document.getElementById("situationText").textContent = data.situation || "Analysis Complete";
 
+      // ✅ Handle confidence (app2.py returns it as decimal like 0.85)
       let conf = data.confidence;
       if (typeof conf === "number") {
-        if (conf <= 1) conf = Math.round(conf * 100);
-        else conf = Math.round(conf);
+        if (conf <= 1) {
+          conf = Math.round(conf * 100);
+        } else {
+          conf = Math.round(conf);
+        }
         document.getElementById("confidenceText").textContent = conf + "%";
       } else {
         document.getElementById("confidenceText").textContent = "--%";
       }
 
-      document.getElementById("evidenceText").textContent = Array.isArray(data.evidence)
-        ? data.evidence.join(", ")
-        : (data.evidence || "None");
+      // ✅ Handle evidence array
+      if (Array.isArray(data.evidence)) {
+        document.getElementById("evidenceText").textContent = data.evidence.join(", ");
+      } else {
+        document.getElementById("evidenceText").textContent = data.evidence || "None";
+      }
 
-      document.getElementById("summaryText").textContent = data.summary || "No summary";
-      document.getElementById("transcribeText").textContent = data.transcribe || "No transcription";
+      // ✅ Handle summary
+      document.getElementById("summaryText").textContent = data.summary || "No summary available";
+      
+      // ✅ FIXED: app2.py uses "transcribed" not "transcribe"
+      document.getElementById("transcribeText").textContent = data.transcribed || data.transcribe || "No transcription";
 
       loading.classList.add("hidden");
       result.classList.remove("hidden");
-      return; // ✅ stop loop on success
+      return; // ✅ Stop loop on success
 
     } catch (error) {
-      console.warn(`Failed with ${API_URL}:`, error.message);
+      console.warn(`❌ Failed with ${API_URL}:`, error.message);
       lastError = error;
     }
   }
 
+  // ✅ All attempts failed
   loading.classList.add("hidden");
 
-  // ✅ FIX: correct command message
   alert(
-    "Backend Connection Failed!\n\n" +
+    "🚨 Backend Connection Failed!\n\n" +
     "Solutions:\n" +
-    "1) Run backend:\n" +
-    "   py -m uvicorn app:app --reload --host 127.0.0.1 --port 8001\n\n" +
+    "1) Make sure backend is running:\n" +
+    "   uvicorn app2:app --reload --host 127.0.0.1 --port 8000\n\n" +
     "2) Check backend docs:\n" +
-    "   http://127.0.0.1:8001/docs\n\n" +
+    "   http://127.0.0.1:8000/docs\n\n" +
+    "3) Check console for detailed error\n\n" +
     "Error: " + (lastError ? lastError.message : "Unknown")
   );
 }
@@ -172,6 +191,9 @@ saveBtn.addEventListener("click", function() {
         minute: '2-digit'
     });
 
+    // ✅ FIXED: Handle both "transcribed" and "transcribe" fields
+    const transcription = currentAnalysisData.transcribed || currentAnalysisData.transcribe || "No transcription";
+
     const historyItem = {
         timestamp: timestamp,
         location: currentAnalysisData.location || "Unknown",
@@ -180,7 +202,8 @@ saveBtn.addEventListener("click", function() {
         soundType: Array.isArray(currentAnalysisData.evidence)
             ? currentAnalysisData.evidence[0]
             : "Audio Analysis",
-        fileName: currentFile ? currentFile.name : "unknown.wav"
+        fileName: currentFile ? currentFile.name : "unknown.wav",
+        transcription: transcription
     };
 
     history.unshift(historyItem);
@@ -201,7 +224,7 @@ saveBtn.addEventListener("click", function() {
         saveBtn.style.background = "";
     }, 2000);
 
-    console.log("Saved to history:", historyItem);
+    console.log("💾 Saved to history:", historyItem);
 });
 
 // --- DRAG AND DROP FUNCTIONALITY ---
@@ -249,7 +272,7 @@ if (dropZone) {
       if (file.type.startsWith('audio/')) {
         initPlayer(file);
       } else {
-        alert('Please drop an audio file (MP3, WAV, M4A)');
+        alert('⚠️ Please drop an audio file (MP3, WAV, M4A, MP4)');
       }
     }
   }

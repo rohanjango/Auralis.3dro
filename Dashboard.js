@@ -76,7 +76,7 @@ function loadHistory() {
             <small>Location</small>
             <span>${location}</span>
           </div>
-          <button class="copy-btn" onclick="copyText(this, '${escLocation}')" title="Copy Location">
+          <button class="copy-btn" onclick="copyText(this, '${escLocation}')" title="Copy Location" aria-label="Copy Location">
             <i class="fa-regular fa-copy"></i>
           </button>
         </div>
@@ -87,7 +87,7 @@ function loadHistory() {
             <small>Context</small>
             <span>${situation}</span>
           </div>
-          <button class="copy-btn" onclick="copyText(this, '${escSituation}')" title="Copy Context">
+          <button class="copy-btn" onclick="copyText(this, '${escSituation}')" title="Copy Context" aria-label="Copy Context">
             <i class="fa-regular fa-copy"></i>
           </button>
         </div>
@@ -98,7 +98,7 @@ function loadHistory() {
             <small>Sound Class</small>
             <span>${soundType}</span>
           </div>
-          <button class="copy-btn" onclick="copyText(this, '${escSound}')" title="Copy Class">
+          <button class="copy-btn" onclick="copyText(this, '${escSound}')" title="Copy Class" aria-label="Copy Class">
             <i class="fa-regular fa-copy"></i>
           </button>
         </div>

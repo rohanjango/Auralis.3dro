@@ -22,6 +22,8 @@ body {
   justify-content: space-between;
   align-items: center;
   padding: 25px 60px;
+  /* ✅ FIX: Added webkit prefix for Safari support */
+  -webkit-backdrop-filter: blur(10px);
   backdrop-filter: blur(10px);
   position: sticky;
   top: 0;
@@ -102,7 +104,7 @@ body {
   position: relative;
 }
 
-/* --- 3D SONIC SPHERE (New Feature) --- */
+/* --- 3D SONIC SPHERE --- */
 .sphere-container {
     perspective: 1000px;
     width: 200px;
@@ -182,10 +184,10 @@ body {
     margin-bottom: 40px;
 }
 
-/* --- UPDATED: Big Upload Container --- */
+/* --- Upload Container --- */
 .upload-container {
     border: 2px dashed #333;
-    padding: 60px; /* Bigger padding */
+    padding: 60px; 
     width: 100%;
     max-width: 700px;
     border-radius: 24px;
@@ -199,7 +201,6 @@ body {
     background: rgba(127, 60, 255, 0.03);
     transform: translateY(-5px);
 }
-/* Icon bounce inside upload */
 .upload-container:hover .large-upload-btn i {
     animation: bounce 1s infinite;
 }
@@ -257,6 +258,8 @@ body {
     align-items: center;
     gap: 20px;
     background: rgba(20, 20, 20, 0.6);
+    /* ✅ FIX: Added webkit prefix */
+    -webkit-backdrop-filter: blur(20px);
     backdrop-filter: blur(20px);
     padding: 20px 30px;
     border-radius: 60px;
@@ -285,6 +288,10 @@ body {
   text-align: left;
   margin-top: 30px;
   box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+  display: flex;
+  flex-direction: column;
+  gap: 25px; 
+  padding-bottom: 30px;
 }
 
 .result-item {
@@ -293,13 +300,23 @@ body {
     border-radius: 12px;
     border: 1px solid transparent;
     transition: 0.3s;
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding-right: 40px;
 }
 .result-item:hover {
     border-color: #333;
     transform: translateY(-2px);
 }
 
-/* Animations */
+.content-wrapper {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
 @keyframes bounce {
     0%, 100% { transform: translateY(0); }
     50% { transform: translateY(-5px); }
@@ -312,7 +329,7 @@ body {
 
 .hidden { display: none !important; }
 
-/* Grid for About Page Tech Stack */
+/* Grid for About Page */
 .tech-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -328,22 +345,14 @@ body {
 }
 .tech-item h4 { color: #fff; margin-bottom: 5px; }
 .tech-item span { color: #666; font-size: 12px; }
-/* --- FIX 1: Better Gap for Result Box --- */
-.result {
-    display: flex;
-    flex-direction: column;
-    gap: 25px; /* Adds space between all items inside the box */
-    padding-bottom: 30px; /* Extra breathing room at the bottom */
-}
 
 .result-grid {
-    margin-bottom: 10px; /* Push the grid away from the save button */
+    margin-bottom: 10px;
+    gap: 20px;
 }
 
-/* --- FIX 2: "Clear History" Button Styling --- */
-/* Matches the "Your Data" badge style but interactive */
 #clearBtn {
-    background: rgba(255, 50, 50, 0.1); /* Subtle red tint */
+    background: rgba(255, 50, 50, 0.1);
     border: 1px solid #ff4444;
     color: #ffaaaa;
     padding: 8px 18px;
@@ -364,9 +373,10 @@ body {
     box-shadow: 0 0 15px rgba(255, 68, 68, 0.4);
     transform: translateY(-2px);
 }
-/* --- LOGIN PAGE STYLES --- */
+
+/* --- LOGIN PAGE --- */
 .login-body {
-    overflow: hidden; /* Prevents scrollbars during 3D rotation */
+    overflow: hidden;
     height: 100vh;
     display: flex;
     flex-direction: column;
@@ -378,10 +388,9 @@ body {
     align-items: center;
     justify-content: center;
     padding: 0 10%;
-    gap: 100px; /* Space between 3D object and Form */
+    gap: 100px;
 }
 
-/* 3D Cube Animation */
 .visual-side {
     text-align: center;
     perspective: 1000px;
@@ -431,9 +440,10 @@ body {
     50% { transform: translateY(-20px); }
 }
 
-/* Login Form Styling */
 .glass-form {
     background: rgba(255, 255, 255, 0.03);
+    /* ✅ FIX: Added webkit prefix */
+    -webkit-backdrop-filter: blur(15px);
     backdrop-filter: blur(15px);
     padding: 40px;
     border-radius: 20px;
@@ -457,7 +467,7 @@ body {
 }
 .input-group input {
     width: 100%;
-    padding: 12px 12px 12px 45px; /* Space for icon */
+    padding: 12px 12px 12px 45px;
     background: rgba(0,0,0,0.3);
     border: 1px solid #333;
     border-radius: 8px;
@@ -479,16 +489,14 @@ body {
 .form-footer a { color: #aaa; text-decoration: none; }
 .form-footer a:hover { color: #fff; }
 
-/* Responsive: stack vertically on phones*/
 @media (max-width: 768px) {
     .login-container {
         flex-direction: column;
         gap: 50px;
     }
 }
-/* --- DASHBOARD UPDATES --- */
 
-/* 1. Organize the Card Header */
+/* --- DASHBOARD UPDATES --- */
 .result-header {
     display: flex;
     justify-content: space-between;
@@ -507,7 +515,6 @@ body {
     font-family: monospace;
 }
 
-/* 2. Mini Waveform Visualization */
 .mini-waveform {
     display: flex;
     align-items: center;
@@ -521,26 +528,9 @@ body {
     background: #444;
     border-radius: 1px;
     display: block;
-    /* Static visual, but you can animate if desired */
     opacity: 0.7;
 }
 
-/* 3. Result Item Layout for Copy Button */
-.result-item {
-    position: relative; /* Needed for positioning the button */
-    display: flex;
-    align-items: center; /* Center items vertically */
-    gap: 12px;
-    padding-right: 40px; /* Make space for the copy button */
-}
-
-.content-wrapper {
-    flex: 1; /* Takes up remaining space */
-    display: flex;
-    flex-direction: column;
-}
-
-/* 4. The Copy Button */
 .copy-btn {
     position: absolute;
     right: 10px;
@@ -553,10 +543,9 @@ body {
     padding: 5px;
     font-size: 14px;
     transition: 0.2s;
-    opacity: 0; /* Hidden by default */
+    opacity: 0;
 }
 
-/* Show button when hovering over the item */
 .result-item:hover .copy-btn {
     opacity: 1;
 }
@@ -566,30 +555,24 @@ body {
     transform: translateY(-50%) scale(1.1);
 }
 
-/* Fix for Grid Gap mentioned previously */
-.result-grid {
-    gap: 20px; /* Better spacing between columns */
-}
-/* --- NEW: Sign In Button (Your Data Style) --- */
 .outline-glow {
-    background: transparent;           /* No solid background */
-    border: 1px solid #7f3cff;         /* Purple border */
-    color: #caa7ff;                    /* Light purple text */
+    background: transparent;
+    border: 1px solid #7f3cff;
+    color: #caa7ff;
     padding: 12px;
     width: 100%;
-    border-radius: 50px;               /* Pill shape */
+    border-radius: 50px;
     font-size: 14px;
     font-weight: 600;
     letter-spacing: 1px;
-    text-transform: uppercase;         /* Makes text uppercase like badge */
+    text-transform: uppercase;
     cursor: pointer;
     transition: all 0.3s ease;
-    box-shadow: 0 0 10px rgba(127, 60, 255, 0.2); /* Subtle initial glow */
+    box-shadow: 0 0 10px rgba(127, 60, 255, 0.2);
 }
 
-/* Hover Effect: Brighter glow */
 .outline-glow:hover {
-    background: rgba(127, 60, 255, 0.1); /* Slight purple tint on hover */
+    background: rgba(127, 60, 255, 0.1);
     color: #fff;
     box-shadow: 0 0 20px rgba(127, 60, 255, 0.6);
     transform: translateY(-2px);

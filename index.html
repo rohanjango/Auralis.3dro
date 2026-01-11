@@ -6,6 +6,7 @@
   <title>Auralis | Audio Intelligence</title>
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎵</text></svg>">
 </head>
 <body>
 
@@ -42,7 +43,7 @@
     <div class="interactive-area">
         
         <div id="uploadContainer" class="upload-container">
-            <input type="file" id="audioUpload" accept="audio/*" hidden />
+            <input type="file" id="audioUpload" accept="audio/*" hidden aria-label="Upload Audio File"/>
             
             <button class="btn large-upload-btn btn-hover" onclick="document.getElementById('audioUpload').click()">
                 <i class="fa-solid fa-cloud-arrow-up"></i> Upload Audio File
@@ -62,7 +63,7 @@
 
         <div id="playerContainer" class="player-container hidden">
             <div class="glass-player">
-                <button id="playBtn" class="play-btn btn-hover"><i class="fa-solid fa-play"></i></button>
+                <button id="playBtn" class="play-btn btn-hover" aria-label="Play or Pause Audio"><i class="fa-solid fa-play"></i></button>
                 
                 <div class="track-info">
                     <span id="fileNameDisplay">mysound_recording.mp3</span>
