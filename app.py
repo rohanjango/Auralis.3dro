@@ -10,11 +10,10 @@ import numpy as np
 import csv
 import requests
 from transformers import pipeline
-import librosa  # ✅ This handles ALL audio formats (no FFmpeg needed)
+import librosa
 import os
 import shutil
 import subprocess
-import os
 
 # ==============================
 # 🎬 FFMPEG DETECTION + PATH FIX
@@ -25,44 +24,27 @@ FFMPEG_BIN_DIR = r"D:\photo\ffmpeg\ffmpeg-2026-01-07-git-af6a1dd0b2-full_build\b
 def ensure_ffmpeg_available():
     """
     Ensures FFmpeg is available for Whisper/Librosa.
-    - If ffmpeg is already in PATH: ok
-    - Else: add FFMPEG_BIN_DIR to PATH
-    - Prints clear debug output
     """
-
-    # Check if ffmpeg is already available
     existing = shutil.which("ffmpeg")
     if existing:
         print(f"✅ FFmpeg already available: {existing}")
         return True
 
-    # Add your FFmpeg folder to PATH if it exists
     if os.path.isdir(FFMPEG_BIN_DIR):
         os.environ["PATH"] = FFMPEG_BIN_DIR + os.pathsep + os.environ.get("PATH", "")
         found = shutil.which("ffmpeg")
 
         if found:
             print(f"✅ FFmpeg enabled (added to PATH): {found}")
-
-            # Optional: print version to confirm everything works
-            try:
-                ver = subprocess.check_output(["ffmpeg", "-version"], text=True).splitlines()[0]
-                print("✅", ver)
-            except Exception as e:
-                print("⚠️ FFmpeg detected but version check failed:", e)
-
             return True
 
         print("❌ FFmpeg folder exists but ffmpeg still not detected.")
-        print("   Make sure ffmpeg.exe is inside:")
-        print(f"   {FFMPEG_BIN_DIR}")
         return False
 
     print("❌ FFmpeg bin folder not found:", FFMPEG_BIN_DIR)
     return False
 
-
-# Run FFmpeg detection ON SERVER STARTUP
+# Run FFmpeg detection
 ensure_ffmpeg_available()
 
 # ==============================
@@ -70,14 +52,20 @@ ensure_ffmpeg_available()
 # ==============================
 app = FastAPI(title="Auralis API")
 
-# ✅ CRITICAL FIX: Proper CORS for Edge/Chrome
+# ✅ FIXED: Explicitly allow the origin shown in your video error
+origins = [
+    "http://127.0.0.1:5500",  # VS Code Live Server (IP)
+    "http://localhost:5500",  # VS Code Live Server (Localhost)
+    "*"                       # Fallback for other environments
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins
-    allow_credentials=False,  # Must be False when using "*"
+    allow_origins=origins,    # ✅ Uses specific list instead of just "*"
+    allow_credentials=True,   # ✅ Changed to True to allow browser cookies/headers
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["*"]  # ✅ Added: Exposes all headers to frontend
+    expose_headers=["*"]
 )
 
 # Root redirect to docs
@@ -85,7 +73,6 @@ app.add_middleware(
 def root():
     return RedirectResponse(url="/docs")
 
-# ✅ FIX: Favicon handler (stops 404 errors)
 @app.get("/favicon.ico")
 async def favicon():
     return Response(content=b"", media_type="image/x-icon", status_code=200)
@@ -204,7 +191,7 @@ async def analyze(file: UploadFile = File(...)):
             f.write(contents)
         print(f"💾 Saved: {temp_filename}")
 
-        # ✅ TRANSCRIBE (Whisper handles all formats internally)
+        # ✅ TRANSCRIBE
         print("🎤 Transcribing...")
         text = "Speech unclear"
         if whisper:
@@ -215,20 +202,14 @@ async def analyze(file: UploadFile = File(...)):
             except Exception as e:
                 print(f"⚠️ Whisper error: {e}")
 
-        # ✅ LOAD AUDIO (Librosa handles MP3, M4A, WAV, MP4 automatically)
+        # ✅ LOAD AUDIO
         print("🔊 Loading audio...")
         try:
-            # sr=16000 forces 16kHz, mono=True forces mono
             audio, sr = librosa.load(temp_filename, sr=16000, mono=True)
-            duration = len(audio) / sr
-            print(f"⏱️ Duration: {duration:.2f}s")
             print(f"🎵 Audio shape: {audio.shape}, Sample rate: {sr}Hz")
         except Exception as e:
             print(f"❌ Load failed: {e}")
-            return JSONResponse(
-                status_code=500,
-                content={"error": f"Could not load audio: {str(e)}"}
-            )
+            return JSONResponse(status_code=500, content={"error": f"Could not load audio: {str(e)}"})
 
         # ✅ ANALYZE WITH YAMNET
         print("🤖 Running YAMNet...")
@@ -241,14 +222,9 @@ async def analyze(file: UploadFile = File(...)):
             for i in top_indices:
                 raw_sounds[labels[i]] = float(mean_scores[i])
 
-            print(f"🔊 TOP SOUNDS: {list(raw_sounds.keys())[:3]}")
-
         except Exception as e:
             print(f"❌ YAMNet failed: {e}")
-            return JSONResponse(
-                status_code=500,
-                content={"error": f"Analysis failed: {str(e)}"}
-            )
+            return JSONResponse(status_code=500, content={"error": f"Analysis failed: {str(e)}"})
 
         # Filter sounds
         keywords = ["speech", "conversation", "crowd", "vehicle", "engine", "traffic", "aircraft", "siren", "alarm"]
@@ -261,11 +237,7 @@ async def analyze(file: UploadFile = File(...)):
         print("🧠 Running inference...")
         result = analyze_audio(text, sounds)
         
-        print(f"✅ RESULT:")
-        print(f"   📍 Location: {result['location']}")
-        print(f"   🎯 Situation: {result['situation']}")
-        print(f"   📊 Confidence: {result['confidence']*100:.0f}%")
-        print("="*60 + "\n")
+        print(f"✅ RESULT: {result['location']} - {result['situation']}")
         
         return JSONResponse(content=result)
 
@@ -273,21 +245,15 @@ async def analyze(file: UploadFile = File(...)):
         print(f"💥 CRITICAL ERROR: {e}")
         import traceback
         traceback.print_exc()
-        return JSONResponse(
-            status_code=500,
-            content={"error": f"Server error: {str(e)}"}
-        )
+        return JSONResponse(status_code=500, content={"error": f"Server error: {str(e)}"})
 
     finally:
-        # Cleanup
         if os.path.exists(temp_filename):
             try:
                 os.remove(temp_filename)
-                print(f"🗑️ Cleaned: {temp_filename}")
             except:
                 pass
 
-# ✅ NEW CODE BLOCK: This runs the server when you execute 'python app.py'
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="127.0.0.1", port=8000)

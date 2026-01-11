@@ -16,7 +16,7 @@ let currentAnalysisData = null;
 
 // ✅ FIXED: Updated API URLs to match your backend
 const API_URLS = [
-    "https://improved-space-halibut-jjgxw7vj4v7rcp6jr-8000.app.github.dev/analyze"
+    "https://k47lgpmd-8000.inc1.devtunnels.ms/analyze"
 ]
 
 // --- FILE UPLOAD HANDLER ---
