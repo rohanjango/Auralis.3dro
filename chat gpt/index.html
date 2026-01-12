@@ -131,31 +131,6 @@
         <i class="fa-solid fa-floppy-disk"></i> Save Analysis to Dashboard
       </button>
     </div>
-    
-    <!-- ===========================
-         🎬 Video Upload + Player
-         =========================== -->
-    <div class="video-upload-box">
-      <h3 style="margin:0 0 10px 0;">Upload Video</h3>
-      <input id="videoUpload" type="file" accept="video/*" />
-
-      <div id="videoSection" class="hidden" style="margin-top:14px;">
-        <video id="videoPlayer" controls style="width:100%; border-radius:16px; border:1px solid rgba(255,255,255,0.12);"></video>
-
-        <div id="videoControls" class="video-controls hidden">
-          <button id="vPlayPause" class="btn btn-hover" type="button">
-            <i class="fa-solid fa-play"></i> Play
-          </button>
-          <button id="vStop" class="btn outline" type="button">
-            <i class="fa-solid fa-stop"></i> Stop
-          </button>
-
-          <input id="vSeek" type="range" min="0" value="0" step="0.1" aria-label="Video seek bar"/>
-          <span id="vTime" style="font-size:13px; opacity:0.9;">00:00 / 00:00</span>
-        </div>
-      </div>
-    </div>
-
     <audio id="audio"></audio>
   </section>
 

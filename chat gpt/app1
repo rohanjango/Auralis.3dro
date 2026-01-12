@@ -1,0 +1,249 @@
+# ==============================
+# 📦 IMPORTS
+# ==============================
+import os
+import shutil
+import subprocess
+import uuid
+import csv
+import requests
+import numpy as np
+import tensorflow as tf
+import tensorflow_hub as hub
+import librosa
+from fastapi import FastAPI, UploadFile, File
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse, JSONResponse, Response
+from transformers import pipeline
+
+# ==============================
+# 🎬 FFMPEG DETECTION + PATH FIX
+# ==============================
+# Update this path if your FFmpeg location changes
+FFMPEG_BIN_DIR = r"D:\photo\ffmpeg\ffmpeg-2026-01-07-git-af6a1dd0b2-full_build\bin"
+
+def ensure_ffmpeg_available():
+    """Ensures FFmpeg is available for Librosa/Audio processing."""
+    if shutil.which("ffmpeg"):
+        print("✅ FFmpeg is available in system PATH.")
+        return True
+    
+    if os.path.isdir(FFMPEG_BIN_DIR):
+        os.environ["PATH"] = FFMPEG_BIN_DIR + os.pathsep + os.environ.get("PATH", "")
+        if shutil.which("ffmpeg"):
+            print(f"✅ FFmpeg enabled from custom path: {FFMPEG_BIN_DIR}")
+            return True
+
+    print("❌ FFmpeg not found. Audio processing might fail for MP3/M4A files.")
+    return False
+
+# Run check on startup
+ensure_ffmpeg_available()
+
+# ==============================
+# 🚀 FASTAPI APP SETUP
+# ==============================
+app = FastAPI(title="Auralis API")
+
+# ✅ Allow CORS for all origins (fixes connection issues from frontend)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+@app.get("/")
+def root():
+    return RedirectResponse(url="/docs")
+
+@app.get("/favicon.ico")
+async def favicon():
+    return Response(content=b"", media_type="image/x-icon", status_code=200)
+
+# ==============================
+# 🤖 LOAD MODELS (Startup)
+# ==============================
+print("\n" + "="*50)
+print("🔄 Loading AI Models... (This may take a moment)")
+print("="*50)
+
+# Load Whisper (Speech-to-Text)
+try:
+    whisper = pipeline("automatic-speech-recognition", model="openai/whisper-small")
+    print("✅ Whisper loaded!")
+except Exception as e:
+    print(f"⚠️ Whisper Warning: {e}")
+    whisper = None
+
+# Load YAMNet (Sound Classification)
+yamnet = hub.load("https://tfhub.dev/google/yamnet/1")
+print("✅ YAMNet loaded!")
+
+# Load YAMNet Labels
+labels_url = "https://raw.githubusercontent.com/tensorflow/models/master/research/audioset/yamnet/yamnet_class_map.csv"
+yamnet_classes = []
+try:
+    resp = requests.get(labels_url)
+    reader = csv.reader(resp.text.splitlines())
+    next(reader)  # Skip header
+    for row in reader:
+        yamnet_classes.append(row[2])
+    print(f"✅ Loaded {len(yamnet_classes)} sound labels")
+except Exception as e:
+    print(f"❌ Failed to load labels: {e}")
+
+print("="*50 + "\n")
+
+# ==============================
+# 🧠 INFERENCE LOGIC
+# ==============================
+def analyze_context(text, sounds):
+    """
+    Combines text (Whisper) and sound labels (YAMNet) to infer context.
+    """
+    text = text.lower()
+    sound_labels = [s.lower() for s in sounds.keys()]
+
+    # Keywords Lists
+    airport_words = ["flight", "boarding", "gate", "airport", "passenger", "terminal"]
+    rail_words = ["train", "platform", "coach", "express", "station"]
+    road_words = ["traffic", "horn", "bus", "car", "lane"]
+    emergency_words = ["help", "fire", "emergency", "police", "accident", "ambulance"]
+    
+    public_sounds = ["crowd", "conversation", "speech", "hubbub"]
+    vehicle_sounds = ["vehicle", "engine", "traffic", "horn", "car", "bus"]
+    emergency_sounds = ["siren", "scream", "alarm", "glass", "shouting", "explosion"]
+
+    # Defaults
+    location = "Unknown"
+    situation = "General Environment"
+    evidence = []
+    confidence = 0.4
+
+    # 1. Check Emergency (Highest Priority)
+    is_emergency_text = any(w in text for w in emergency_words)
+    is_emergency_sound = any(any(es in s for es in emergency_sounds) for s in sound_labels)
+
+    if is_emergency_text or is_emergency_sound:
+        return {
+            "location": "Alert Zone",
+            "situation": "Emergency",
+            "confidence": 0.95,
+            "evidence": ["Distress signals detected"],
+            "summary": "Emergency situation detected based on distress keywords or alarm sounds.",
+            "transcribed": text
+        }
+
+    # 2. Check Airport
+    if any(w in text for w in airport_words) and any(s in sound_labels for s in public_sounds):
+        location = "Airport"
+        situation = "Boarding / Waiting"
+        evidence.append("Flight keywords + Crowd")
+        confidence = 0.85
+    
+    # 3. Check Railway
+    elif any(w in text for w in rail_words) and any(s in sound_labels for s in public_sounds):
+        location = "Railway Station"
+        situation = "Platform Activity"
+        evidence.append("Train keywords + Crowd")
+        confidence = 0.80
+
+    # 4. Check Road/Traffic
+    elif any(s in sound_labels for s in vehicle_sounds) or any(w in text for w in road_words):
+        location = "Road / City"
+        situation = "Traffic"
+        evidence.append("Vehicle sounds detected")
+        confidence = 0.75
+
+    # 5. General Conversation
+    elif "speech" in sound_labels or "conversation" in sound_labels:
+        situation = "Conversation"
+        evidence.append("Speech detected")
+        confidence = 0.60
+
+    # Fallback Evidence
+    if not evidence:
+        evidence = list(sounds.keys())[:3]
+
+    summary = f"This audio appears to be from a {location.lower()} during {situation.lower()}."
+
+    return {
+        "location": location,
+        "situation": situation,
+        "confidence": confidence,
+        "evidence": evidence,
+        "summary": summary,
+        "transcribed": text
+    }
+
+# ==============================
+# 🌐 API ENDPOINT
+# ==============================
+@app.post("/analyze")
+async def analyze_endpoint(file: UploadFile = File(...)):
+    print(f"📥 Received file: {file.filename}")
+    
+    # Create a unique temp file
+    os.makedirs("temp_uploads", exist_ok=True)
+    unique_filename = f"temp_uploads/{uuid.uuid4().hex}_{file.filename}"
+
+    try:
+        # Save File
+        with open(unique_filename, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+
+        # 1. Transcribe (Whisper)
+        print("🎤 Transcribing...")
+        text_result = "Audio unclear"
+        if whisper:
+            try:
+                # Whisper pipeline handles loading internally
+                w_out = whisper(unique_filename, chunk_length_s=30, stride_length_s=5)
+                text_result = w_out.get("text", "")
+                print(f"📝 Text: {text_result[:50]}...")
+            except Exception as e:
+                print(f"⚠️ Whisper error: {e}")
+
+        # 2. Analyze Audio (YAMNet)
+        print("🔊 Analyzing Sounds...")
+        try:
+            # Librosa loads audio as floating point time series
+            wav_data, sr = librosa.load(unique_filename, sr=16000, mono=True)
+            
+            # Helper to run YAMNet on chunks if file is long
+            scores, embeddings, spectrogram = yamnet(wav_data)
+            
+            # Average scores across all frames
+            mean_scores = np.mean(scores, axis=0)
+            top_n_indices = np.argsort(mean_scores)[-10:][::-1] # Top 10
+
+            detected_sounds = {}
+            for i in top_n_indices:
+                detected_sounds[yamnet_classes[i]] = float(mean_scores[i])
+
+        except Exception as e:
+            print(f"❌ Audio Analysis Failed: {e}")
+            detected_sounds = {}
+
+        # 3. Intelligence Inference
+        result = analyze_context(text_result, detected_sounds)
+        
+        print(f"✅ Result: {result['location']} - {result['situation']}")
+        return JSONResponse(content=result)
+
+    except Exception as e:
+        print(f"🔥 Critical Error: {e}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+    finally:
+        # Cleanup
+        if os.path.exists(unique_filename):
+            os.remove(unique_filename)
+            print("🗑️ Temp file cleaned up.")
+
+if __name__ == "__main__":
+    import uvicorn
+    # Hot reload enabled for easier development
+    uvicorn.run(app, host="127.0.0.1", port=8000)

@@ -1,19 +1,7 @@
-// ===============================
-// ✅ Auralis - Frontend Main JS (Audio + Video Upload)
-// ✅ Fixes:
-//    1) "Failed to fetch" (always calls backend on port 8000)
-//    2) Audio duration recognition (mm:ss)
-//    3) Video upload + playback controls (play/pause/stop/seek)
-//    4) Save to Dashboard confirm + popup feedback
-//    5) Strong error messages + safer UI updates
-// ===============================
-
-// ---------- Elements ----------
 const audio = document.getElementById("audio");
 const playBtn = document.getElementById("playBtn");
 const bars = document.querySelectorAll(".waveform span");
 const waveform = document.getElementById("waveform");
-
 const fileNameDisplay = document.getElementById("fileNameDisplay");
 const uploadContainer = document.getElementById("uploadContainer");
 const playerContainer = document.getElementById("playerContainer");
@@ -21,386 +9,242 @@ const loading = document.getElementById("loading");
 const result = document.getElementById("result");
 const audioUpload = document.getElementById("audioUpload");
 const saveBtn = document.getElementById("saveBtn");
-
-// Optional time display (index.html has it)
 const timeDisplay = document.querySelector(".time-display");
 
-// ---------- Video Elements (optional, if present in HTML) ----------
-const videoUpload = document.getElementById("videoUpload");
-const videoSection = document.getElementById("videoSection");
-const videoPlayer = document.getElementById("videoPlayer");
-const videoControls = document.getElementById("videoControls");
-const vPlayPause = document.getElementById("vPlayPause");
-const vStop = document.getElementById("vStop");
-const vSeek = document.getElementById("vSeek");
-const vTime = document.getElementById("vTime");
-
-// ---------- Backend URL ----------
-const API_BASE = "http://127.0.0.1:8000";
-const ANALYZE_URL = `${API_BASE}/analyze`;
-
-// ---------- State ----------
 let currentFile = null;
+let alreadyAnalyzed = false;
 let currentAnalysisData = null;
-let analysisInProgress = false;
 
-// ---------- Helpers ----------
-function setText(id, text) {
-  const el = document.getElementById(id);
-  if (el) el.innerText = text;
-}
+// ✅ FIXED: Corrected API URL (Removed extra 'e')
+const API_URL = "http://127.0.0.1:8000/analyze";
 
-function normalizeEvidence(evidence) {
-  if (!evidence) return [];
-  if (Array.isArray(evidence)) return evidence.map(String).map(s => s.trim()).filter(Boolean);
-  if (typeof evidence === "string") return evidence.split(",").map(s => s.trim()).filter(Boolean);
-  return [String(evidence)];
-}
-
-function formatConfidence(confidence) {
-  if (confidence === null || confidence === undefined || confidence === "") return "0%";
-
-  let num = confidence;
-  if (typeof num === "string") {
-    num = num.replace("%", "").trim();
-    num = Number(num);
-  }
-  if (Number.isNaN(num)) return "0%";
-
-  // if 0..1 => convert to %
-  if (num <= 1) num = num * 100;
-  num = Math.round(num);
-
-  // clamp
-  if (num < 0) num = 0;
-  if (num > 100) num = 100;
-  return `${num}%`;
-}
-
-function formatTime(seconds) {
-  if (!Number.isFinite(seconds) || seconds < 0) seconds = 0;
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-}
-
-function showToast(message, type = "success") {
-  // lightweight toast without external libs
-  const toast = document.createElement("div");
-  toast.className = `toast ${type}`;
-  toast.innerText = message;
-  document.body.appendChild(toast);
-  setTimeout(() => toast.classList.add("show"), 10);
-  setTimeout(() => {
-    toast.classList.remove("show");
-    setTimeout(() => toast.remove(), 250);
-  }, 2400);
-}
-
-// ---------- Audio Duration Recognition ----------
-function bindAudioDurationUI() {
-  if (!audio) return;
-
-  // When metadata is loaded => duration known
-  audio.addEventListener("loadedmetadata", () => {
-    if (!timeDisplay) return;
-    const dur = Number(audio.duration);
-    timeDisplay.textContent = `00:00 / ${formatTime(dur)}`;
-  });
-
-  audio.addEventListener("timeupdate", () => {
-    if (!timeDisplay) return;
-    const cur = Number(audio.currentTime);
-    const dur = Number(audio.duration);
-    timeDisplay.textContent = `${formatTime(cur)} / ${formatTime(dur)}`;
-  });
-
-  audio.addEventListener("ended", () => {
-    if (playBtn) playBtn.innerHTML = '<i class="fa-solid fa-play"></i>';
-    waveform?.classList.remove("active");
-    bars.forEach((b) => (b.style.animationPlayState = "paused"));
-  });
-}
-
-// ---------- File Upload ----------
-audioUpload?.addEventListener("change", function () {
-  if (this.files && this.files.length > 0) {
-    initAudioPlayer(this.files[0]);
-  }
+// --- FILE UPLOAD HANDLER ---
+audioUpload.addEventListener("change", function() {
+    if (this.files.length > 0) {
+        initPlayer(this.files[0]);
+    }
 });
 
-function initAudioPlayer(file) {
-  currentFile = file;
-  currentAnalysisData = null;
-  analysisInProgress = false;
+function initPlayer(file) {
+    currentFile = file;
+    alreadyAnalyzed = false;
+    currentAnalysisData = null;
+    fileNameDisplay.textContent = file.name;
+    audio.src = URL.createObjectURL(file);
+    audio.load();
 
-  // Validate audio format basic check
-  const okTypes = ["audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav", "audio/aac", "audio/mp4", "audio/x-m4a", "audio/ogg", "audio/webm"];
-  if (file.type && !okTypes.includes(file.type)) {
-    showToast("Unsupported audio format. Try MP3/WAV/AAC.", "error");
-  }
+    timeDisplay.textContent = "00:00 / 00:00";
 
-  fileNameDisplay && (fileNameDisplay.textContent = file.name);
-  audio.src = URL.createObjectURL(file);
-  audio.load();
-
-  uploadContainer?.classList.add("hidden");
-  playerContainer?.classList.remove("hidden");
-
-  loading?.classList.add("hidden");
-  result?.classList.add("hidden");
-
-  // Reset UI
-  playBtn && (playBtn.innerHTML = '<i class="fa-solid fa-play"></i>');
-  waveform?.classList.remove("active");
-  bars.forEach((b) => (b.style.animationPlayState = "paused"));
-
-  // Save disabled until analysis complete
-  if (saveBtn) saveBtn.disabled = true;
-
-  console.log("🎧 File loaded:", file.name, "| Type:", file.type, "| Size:", file.size);
-}
-
-// ---------- Audio Play/Analyze ----------
-playBtn?.addEventListener("click", async () => {
-  if (!currentFile) {
-    showToast("Please upload an audio file first.", "error");
-    return;
-  }
-
-  // Analyze first time before play
-  if (!currentAnalysisData && !analysisInProgress) {
-    await analyzeAudio(currentFile);
-  }
-
-  // Still allow play even if analysis failed
-  if (audio.paused) {
-    audio.play();
-    playBtn.innerHTML = '<i class="fa-solid fa-pause"></i>';
-    waveform?.classList.add("active");
-    bars.forEach((b) => (b.style.animationPlayState = "running"));
-  } else {
-    audio.pause();
+    uploadContainer.classList.add("hidden");
+    playerContainer.classList.remove("hidden");
+    result.classList.add("hidden");
     playBtn.innerHTML = '<i class="fa-solid fa-play"></i>';
-    waveform?.classList.remove("active");
-    bars.forEach((b) => (b.style.animationPlayState = "paused"));
-  }
-});
-
-async function analyzeAudio(file) {
-  if (!file) return;
-
-  analysisInProgress = true;
-  currentAnalysisData = null;
-
-  // UI loading
-  loading?.classList.remove("hidden");
-  result?.classList.add("hidden");
-
-  playBtn && (playBtn.disabled = true);
-  if (saveBtn) saveBtn.disabled = true;
-
-  const formData = new FormData();
-  formData.append("file", file); // backend expects "file"
-
-  try {
-    // ✅ quick backend check (avoids Failed to fetch)
-    try {
-      const health = await fetch(`${API_BASE}/`, { method: "GET" });
-      if (!health.ok) throw new Error("Backend unreachable");
-    } catch {
-      throw new Error(
-        "Failed to reach backend.
-
-✅ Fix:
-1) Run backend: python app.py
-2) Backend on http://127.0.0.1:8000
-3) Test: http://127.0.0.1:8000/docs"
-      );
-    }
-
-    console.log("🚀 Sending file to backend:", file.name);
-    console.log("🌐 URL:", ANALYZE_URL);
-
-    // ✅ Backend health check (gives clear error instantly)
-    try {
-      const health = await fetch(`${API_BASE}/`, { method: "GET" });
-      if (!health.ok) throw new Error();
-    } catch {
-      throw new Error(
-        "Failed to reach backend.
-
-✅ Fix:
-1) Run backend: python app.py
-2) Backend on http://127.0.0.1:8000
-3) Test: http://127.0.0.1:8000/docs"
-      );
-    }
-
-    const response = await fetch(ANALYZE_URL, { method: "POST", body: formData });
-
-    if (!response.ok) {
-      const text = await response.text().catch(() => "");
-      throw new Error(`Server error ${response.status} ${response.statusText}\n${text}`);
-    }
-
-    let data;
-    try {
-      data = await response.json();
-    } catch {
-      throw new Error("Backend response is not valid JSON.");
-    }
-
-    if (data?.error) throw new Error(data.error);
-
-    currentAnalysisData = data;
-
-    // Update UI
-    setText("locationText", data.location || "Unknown");
-    setText("situationText", data.situation || "Unknown");
-    const evidenceList = normalizeEvidence(data.evidence);
-    setText("evidenceText", evidenceList.length ? evidenceList.join(", ") : "None");
-    setText("confidenceText", formatConfidence(data.confidence));
-    setText("summaryText", data.summary || "No summary.");
-    setText("transcribeText", data.transcribed || "No speech detected.");
-
-    loading?.classList.add("hidden");
-    result?.classList.remove("hidden");
-
-    if (saveBtn) saveBtn.disabled = false;
-
-    showToast("Analysis completed ✅", "success");
-  } catch (error) {
-    console.error("❌ Analysis Failed:", error);
-    let msg = error?.message || String(error);
-
-    if (msg.toLowerCase().includes("failed to fetch")) {
-      msg =
-        "Failed to reach backend.\n\n✅ Fix:\n1) Run backend: python app.py\n2) Backend on http://127.0.0.1:8000\n3) Test: http://127.0.0.1:8000/docs";
-    }
-
-    showToast("Analysis failed ❌", "error");
-
-    loading?.classList.add("hidden");
-    result?.classList.add("hidden");
-    if (saveBtn) saveBtn.disabled = true;
-  } finally {
-    analysisInProgress = false;
-    playBtn && (playBtn.disabled = false);
-  }
 }
 
-// ---------- Save to Dashboard ----------
-saveBtn?.addEventListener("click", function () {
-  if (!currentAnalysisData || !currentFile) {
-    showToast("Analyze an audio first, then save.", "error");
-    return;
-  }
+// --- TIME DISPLAY LOGIC ---
+function formatTime(seconds) {
+    if (isNaN(seconds)) return "00:00";
+    const minutes = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+}
 
-  const confirmSave = confirm("Do you want to save this analysis to Dashboard?");
-  if (!confirmSave) return;
+audio.addEventListener("timeupdate", () => {
+    const current = formatTime(audio.currentTime);
+    const total = formatTime(audio.duration);
+    timeDisplay.textContent = `${current} / ${total}`;
+});
 
-  try {
-    let history = JSON.parse(localStorage.getItem("auralisHistory")) || [];
+audio.addEventListener("loadedmetadata", () => {
+    timeDisplay.textContent = `00:00 / ${formatTime(audio.duration)}`;
+});
 
-    const evidenceList = normalizeEvidence(currentAnalysisData.evidence);
-    const soundType = evidenceList.length ? evidenceList[0] : "Audio";
+// --- PLAY BUTTON LOGIC ---
+playBtn.addEventListener("click", async () => {
+    if (!currentFile) {
+        alert("Please upload a file first.");
+        return;
+    }
 
-    const newItem = {
-      timestamp: new Date().toLocaleString(),
-      location: currentAnalysisData.location || "Unknown",
-      situation: currentAnalysisData.situation || "Unknown",
-      confidence: formatConfidence(currentAnalysisData.confidence),
-      soundType,
-      fileName: currentFile.name,
-      transcription: currentAnalysisData.transcribed || ""
+    if (!alreadyAnalyzed) {
+        // Pause audio UI while analyzing
+        await analyzeAudio(currentFile);
+        alreadyAnalyzed = true;
+    }
+
+    if (audio.paused) {
+        audio.play()
+            .then(() => {
+                playBtn.innerHTML = '<i class="fa-solid fa-pause"></i>';
+                waveform.classList.add("active");
+                bars.forEach(b => b.style.animationPlayState = "running");
+            })
+            .catch(e => console.error("Audio Play Error:", e));
+    } else {
+        audio.pause();
+        playBtn.innerHTML = '<i class="fa-solid fa-play"></i>';
+        waveform.classList.remove("active");
+        bars.forEach(b => b.style.animationPlayState = "paused");
+    }
+});
+
+audio.addEventListener("ended", () => {
+    playBtn.innerHTML = '<i class="fa-solid fa-play"></i>';
+    waveform.classList.remove("active");
+    bars.forEach(b => b.style.animationPlayState = "paused");
+});
+
+// --- ANALYSIS FUNCTION ---
+async function analyzeAudio(file) {
+    loading.classList.remove("hidden");
+    result.classList.add("hidden");
+
+    try {
+        console.log(`🔄 Sending to API: ${API_URL}`);
+
+        const formData = new FormData();
+        formData.append("file", file);
+
+        // Fetch with error handling
+        const response = await fetch(API_URL, {
+            method: "POST",
+            body: formData,
+        });
+
+        if (!response.ok) {
+            throw new Error(`Server Error: ${response.status} ${response.statusText}`);
+        }
+
+        const data = await response.json();
+
+        if (data.error) {
+            throw new Error(data.error);
+        }
+
+        console.log("✅ API Success:", data);
+        currentAnalysisData = data;
+
+        // UI Updates
+        document.getElementById("locationText").textContent = data.location || "Unknown";
+        document.getElementById("situationText").textContent = data.situation || "Analysis Complete";
+
+        let conf = data.confidence;
+        if (typeof conf === "number") {
+            // Format 0.85 -> 85%
+            document.getElementById("confidenceText").textContent = Math.round(conf * 100) + "%";
+        } else {
+            document.getElementById("confidenceText").textContent = "--%";
+        }
+
+        // Format evidence list
+        if (Array.isArray(data.evidence)) {
+            document.getElementById("evidenceText").textContent = data.evidence.join(", ");
+        } else {
+            document.getElementById("evidenceText").textContent = data.evidence || "None";
+        }
+
+        document.getElementById("summaryText").textContent = data.summary || "No summary available";
+        document.getElementById("transcribeText").textContent = data.transcribed || "No transcription";
+
+        loading.classList.add("hidden");
+        result.classList.remove("hidden");
+
+    } catch (error) {
+        console.error("❌ Analysis Failed:", error);
+        loading.classList.add("hidden");
+        alert(
+            "🚨 Backend Connection Failed!\n\n" +
+            "1. Make sure 'app.py' is running.\n" +
+            "2. Check the console for errors.\n" +
+            "Error details: " + error.message
+        );
+    }
+}
+
+// --- SAVE TO DASHBOARD ---
+saveBtn.addEventListener("click", function() {
+    if (!currentAnalysisData) {
+        alert("No analysis data to save!");
+        return;
+    }
+
+    let history;
+    try {
+        history = JSON.parse(localStorage.getItem("auralisHistory")) || [];
+        if (!Array.isArray(history)) history = [];
+    } catch {
+        history = [];
+    }
+
+    const now = new Date();
+    const timestamp = now.toLocaleString('en-US', {
+        month: 'short', day: 'numeric', year: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+    });
+
+    const evidenceStr = Array.isArray(currentAnalysisData.evidence) 
+        ? currentAnalysisData.evidence[0] 
+        : "Audio Analysis";
+
+    const historyItem = {
+        timestamp: timestamp,
+        location: currentAnalysisData.location || "Unknown",
+        situation: currentAnalysisData.situation || "Unknown",
+        confidence: document.getElementById("confidenceText").textContent || "--%",
+        soundType: evidenceStr,
+        fileName: currentFile ? currentFile.name : "unknown.wav",
+        transcription: currentAnalysisData.transcribed || "No text"
     };
 
-    history.unshift(newItem);
-    history = history.slice(0, 50); // max 50
+    history.unshift(historyItem);
+    if (history.length > 50) history = history.slice(0, 50); // Keep last 50
+
     localStorage.setItem("auralisHistory", JSON.stringify(history));
 
-    // UI feedback
+    // Visual feedback
     const originalHTML = saveBtn.innerHTML;
     saveBtn.innerHTML = '<i class="fa-solid fa-check"></i> Saved!';
-    saveBtn.classList.add("saved");
-    setTimeout(() => {
-      saveBtn.innerHTML = originalHTML;
-      saveBtn.classList.remove("saved");
-    }, 1700);
+    saveBtn.style.background = "#28a745";
 
-    showToast("Saved to Dashboard ✅", "success");
-    console.log("💾 Saved:", newItem);
-  } catch (e) {
-    console.error("❌ Save failed:", e);
-    showToast("Save failed ❌. See console.", "error");
-  }
+    setTimeout(() => {
+        saveBtn.innerHTML = originalHTML;
+        saveBtn.style.background = "";
+    }, 2000);
 });
 
-// ===============================
-// 🎬 VIDEO UPLOAD + PLAYBACK CONTROLS
-// ===============================
-function setupVideoPlayer() {
-  if (!videoUpload || !videoPlayer) return;
+// --- DRAG AND DROP ---
+const dropZone = document.querySelector('.upload-container');
+if (dropZone) {
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        document.body.addEventListener(eventName, (e) => {
+            e.preventDefault(); e.stopPropagation();
+        }, false);
+    });
 
-  videoUpload.addEventListener("change", function () {
-    if (!this.files || this.files.length === 0) return;
+    ['dragenter', 'dragover'].forEach(evt => {
+        dropZone.addEventListener(evt, () => {
+            dropZone.style.borderColor = '#7f3cff';
+            dropZone.style.background = 'rgba(127, 60, 255, 0.1)';
+            dropZone.style.transform = 'scale(1.02)';
+        });
+    });
 
-    const file = this.files[0];
+    ['dragleave', 'drop'].forEach(evt => {
+        dropZone.addEventListener(evt, () => {
+            dropZone.style.borderColor = '#333';
+            dropZone.style.background = 'rgba(255,255,255,0.01)';
+            dropZone.style.transform = 'scale(1)';
+        });
+    });
 
-    // basic type validation
-    const okVideo = ["video/mp4", "video/quicktime", "video/x-msvideo", "video/webm", "video/ogg", "video/x-matroska"];
-    if (file.type && !okVideo.includes(file.type)) {
-      showToast("Unsupported video format. Try MP4/MOV/AVI.", "error");
-      return;
-    }
-
-    videoPlayer.src = URL.createObjectURL(file);
-    videoPlayer.load();
-
-    videoSection?.classList.remove("hidden");
-    videoControls?.classList.remove("hidden");
-
-    showToast("Video loaded ✅", "success");
-  });
-
-  vPlayPause?.addEventListener("click", () => {
-    if (videoPlayer.paused) {
-      videoPlayer.play();
-      vPlayPause.innerHTML = '<i class="fa-solid fa-pause"></i> Pause';
-    } else {
-      videoPlayer.pause();
-      vPlayPause.innerHTML = '<i class="fa-solid fa-play"></i> Play';
-    }
-  });
-
-  vStop?.addEventListener("click", () => {
-    videoPlayer.pause();
-    videoPlayer.currentTime = 0;
-    vPlayPause.innerHTML = '<i class="fa-solid fa-play"></i> Play';
-  });
-
-  videoPlayer.addEventListener("loadedmetadata", () => {
-    if (vSeek) vSeek.max = String(videoPlayer.duration || 0);
-    if (vTime) vTime.textContent = `00:00 / ${formatTime(videoPlayer.duration || 0)}`;
-  });
-
-  videoPlayer.addEventListener("timeupdate", () => {
-    if (vSeek && !vSeek.dragging) vSeek.value = String(videoPlayer.currentTime || 0);
-    if (vTime) vTime.textContent = `${formatTime(videoPlayer.currentTime || 0)} / ${formatTime(videoPlayer.duration || 0)}`;
-  });
-
-  vSeek?.addEventListener("input", () => {
-    // Seek while dragging
-    const t = Number(vSeek.value);
-    if (Number.isFinite(t)) videoPlayer.currentTime = t;
-  });
-
-  videoPlayer.addEventListener("ended", () => {
-    vPlayPause.innerHTML = '<i class="fa-solid fa-play"></i> Play';
-  });
+    dropZone.addEventListener('drop', (e) => {
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            if (files[0].type.startsWith('audio/')) {
+                initPlayer(files[0]);
+            } else {
+                alert('⚠️ Please drop an audio file (MP3, WAV, M4A)');
+            }
+        }
+    });
 }
-
-// ---------- Init ----------
-bindAudioDurationUI();
-setupVideoPlayer();
