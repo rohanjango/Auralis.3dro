@@ -18,7 +18,7 @@ import subprocess
 # ==============================
 # 🎬 FFMPEG DETECTION + PATH FIX
 # ==============================
-
+# ✅ PRESERVED YOUR EXACT PATH
 FFMPEG_BIN_DIR = r"D:\photo\ffmpeg\ffmpeg-2026-01-07-git-af6a1dd0b2-full_build\bin"
 
 def ensure_ffmpeg_available():
@@ -51,7 +51,6 @@ def ensure_ffmpeg_available():
     print("❌ FFmpeg bin folder not found:", FFMPEG_BIN_DIR)
     return False
 
-
 # Run FFmpeg detection ON SERVER STARTUP
 ensure_ffmpeg_available()
 
@@ -63,20 +62,13 @@ app = FastAPI(title="Auralis API")
 # ==============================
 # 🔧 UPDATED CORS CONFIGURATION
 # ==============================
-# Added specific origins to fix 'Access-Control-Allow-Origin' error
-origins = [
-    "http://127.0.0.1:5500",    # VS Code Live Server (IP)
-    "http://localhost:5500",    # VS Code Live Server (Localhost)
-    "*"                         # Fallback for other environments
-]
-
+# Changed to ["*"] to allow connection from ANY localhost port (fixes the connection error)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,      # CHANGED: Uses specific list instead of just ["*"]
-    allow_credentials=True,     # CHANGED: Must be True to allow browser headers/cookies
+    allow_origins=["*"], 
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["*"]
 )
 
 # Root redirect to docs
@@ -219,13 +211,9 @@ async def analyze(file: UploadFile = File(...)):
             audio, sr = librosa.load(temp_filename, sr=16000, mono=True)
             duration = len(audio) / sr
             print(f"⏱️ Duration: {duration:.2f}s")
-            print(f"🎵 Audio shape: {audio.shape}, Sample rate: {sr}Hz")
         except Exception as e:
             print(f"❌ Load failed: {e}")
-            return JSONResponse(
-                status_code=500,
-                content={"error": f"Could not load audio: {str(e)}"}
-            )
+            return JSONResponse(status_code=500, content={"error": f"Could not load audio: {str(e)}"})
 
         # ✅ ANALYZE WITH YAMNET
         print("🤖 Running YAMNet...")
@@ -242,10 +230,7 @@ async def analyze(file: UploadFile = File(...)):
 
         except Exception as e:
             print(f"❌ YAMNet failed: {e}")
-            return JSONResponse(
-                status_code=500,
-                content={"error": f"Analysis failed: {str(e)}"}
-            )
+            return JSONResponse(status_code=500, content={"error": f"Analysis failed: {str(e)}"})
 
         # Filter sounds
         keywords = ["speech", "conversation", "crowd", "vehicle", "engine", "traffic", "aircraft", "siren", "alarm"]
@@ -268,21 +253,24 @@ async def analyze(file: UploadFile = File(...)):
 
     except Exception as e:
         print(f"💥 CRITICAL ERROR: {e}")
-        import traceback
-        traceback.print_exc()
-        return JSONResponse(
-            status_code=500,
-            content={"error": f"Server error: {str(e)}"}
-        )
+        return JSONResponse(status_code=500, content={"error": f"Server error: {str(e)}"})
 
     finally:
         # Cleanup
         if os.path.exists(temp_filename):
             try:
                 os.remove(temp_filename)
-                print(f"🗑️ Cleaned: {temp_filename}")
             except:
                 pass
+
+# ✅ ADDED: Mock endpoints so Login/Save don't crash the frontend
+@app.post("/login")
+async def login_mock(data: dict):
+    return {"token": "mock-token-123", "email": data.get("email", "user@test.com")}
+
+@app.post("/save_history")
+async def save_history_mock(data: dict):
+    return {"status": "saved"}
 
 if __name__ == "__main__":
     import uvicorn

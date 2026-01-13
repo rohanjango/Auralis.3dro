@@ -1,6 +1,5 @@
 const audio = document.getElementById("audio");
 const playBtn = document.getElementById("playBtn");
-const bars = document.querySelectorAll(".waveform span");
 const waveform = document.getElementById("waveform");
 const fileNameDisplay = document.getElementById("fileNameDisplay");
 const uploadContainer = document.getElementById("uploadContainer");
@@ -23,8 +22,24 @@ let mediaRecorder;
 let audioChunks = [];
 let recordTimerInterval;
 
-// ✅ CORRECT API URL
-const API_URL = "https://ideal-space-funicular-69pj75q9r6rvcr7qw-8000.app.github.dev/analyze";
+// ✅ FIXED: Point to Localhost
+const API_URL = "http://127.0.0.1:8000/analyze";
+const SAVE_URL = "http://127.0.0.1:8000/save_history";
+
+// --- TOAST NOTIFICATION UTILITY ---
+function showToast(message, type = "info") {
+    let container = document.getElementById("toast-container");
+    if (!container) {
+        container = document.createElement("div");
+        container.id = "toast-container";
+        document.body.appendChild(container);
+    }
+    const toast = document.createElement("div");
+    toast.className = `toast ${type}`;
+    toast.innerHTML = `<i class="fa-solid fa-info-circle"></i> ${message}`;
+    container.appendChild(toast);
+    setTimeout(() => { toast.remove(); }, 3000);
+}
 
 // --- FILE UPLOAD HANDLER ---
 audioUpload.addEventListener("change", function() {
@@ -37,21 +52,16 @@ audioUpload.addEventListener("change", function() {
 if(recordBtn) {
     recordBtn.addEventListener("click", async () => {
         if (!mediaRecorder || mediaRecorder.state === "inactive") {
-            // START RECORDING
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 mediaRecorder = new MediaRecorder(stream);
                 mediaRecorder.start();
-                
-                // Reset chunks
                 audioChunks = [];
                 
-                // UI Updates
                 recordBtn.innerHTML = '<i class="fa-solid fa-stop"></i> Stop';
-                recordBtn.style.background = "#ff0000"; // Red
+                recordBtn.style.background = "#ff0000"; 
                 recordStatus.classList.remove("hidden");
                 
-                // Timer
                 let seconds = 0;
                 recordTimerInterval = setInterval(() => {
                     seconds++;
@@ -60,32 +70,24 @@ if(recordBtn) {
                     recordTimer.textContent = `${mins}:${secs}`;
                 }, 1000);
 
-                // Collect Data
                 mediaRecorder.addEventListener("dataavailable", e => audioChunks.push(e.data));
-                
-                // STOP EVENT
                 mediaRecorder.addEventListener("stop", () => {
                     clearInterval(recordTimerInterval);
-                    
                     const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
                     const audioFile = new File([audioBlob], "mic_recording.wav", { type: "audio/wav" });
                     
-                    // Reset UI
                     recordBtn.innerHTML = '<i class="fa-solid fa-microphone"></i> Record Now';
                     recordBtn.style.background = "#ff4757";
                     recordStatus.classList.add("hidden");
                     recordTimer.textContent = "00:00";
                     
-                    // Process File
                     initPlayer(audioFile);
                     analyzeAudio(audioFile);
                 });
             } catch (err) {
-                alert("Microphone access denied. Please check browser permissions.");
-                console.error(err);
+                showToast("Microphone access denied.", "error");
             }
         } else {
-            // STOP RECORDING
             mediaRecorder.stop();
         }
     });
@@ -107,7 +109,7 @@ function initPlayer(file) {
     playBtn.innerHTML = '<i class="fa-solid fa-play"></i>';
 }
 
-// --- ANALYSIS FUNCTION (Fixed) ---
+// --- ANALYSIS FUNCTION ---
 async function analyzeAudio(file) {
     loading.classList.remove("hidden");
     result.classList.add("hidden");
@@ -117,25 +119,18 @@ async function analyzeAudio(file) {
         const formData = new FormData();
         formData.append("file", file);
 
-        // ✅ STANDARD FETCH (Solves CORS if backend is correct)
         const response = await fetch(API_URL, {
             method: "POST",
             body: formData
         });
 
-        if (!response.ok) {
-            const txt = await response.text();
-            throw new Error(`HTTP ${response.status}: ${txt}`);
-        }
+        if (!response.ok) throw new Error("Server connection failed");
 
         const data = await response.json();
-        console.log("✅ Success:", data);
-
         if (data.error) throw new Error(data.error);
 
         currentAnalysisData = data;
         
-        // Update UI
         document.getElementById("locationText").textContent = data.location || "Unknown";
         document.getElementById("situationText").textContent = data.situation || "Unknown";
         
@@ -151,17 +146,12 @@ async function analyzeAudio(file) {
 
         loading.classList.add("hidden");
         result.classList.remove("hidden");
+        showToast("Analysis Complete!", "success");
 
     } catch (error) {
         console.warn(`❌ Failed:`, error);
         loading.classList.add("hidden");
-        alert(
-            "🚨 Backend Connection Failed!\n\n" +
-            "1) Ensure backend is running:\n" +
-            "   py -m uvicorn app:app --reload --host 127.0.0.1 --port 8000\n\n" +
-            "2) Ensure you are on: http://127.0.0.1:5500\n\n" +
-            "Error: " + error.message
-        );
+        showToast("Backend Connection Failed. Is app.py running?", "error");
     }
 }
 
@@ -177,7 +167,7 @@ audio.addEventListener("timeupdate", () => {
 });
 
 playBtn.addEventListener("click", async () => {
-    if (!currentFile) return alert("Upload first");
+    if (!currentFile) return showToast("Upload first", "error");
     
     if (!alreadyAnalyzed) {
         await analyzeAudio(currentFile);
@@ -213,8 +203,7 @@ saveBtn.addEventListener("click", function() {
     history.unshift(item);
     localStorage.setItem("auralisHistory", JSON.stringify(history.slice(0,50)));
 
-    // Cloud Save (Try/Catch wrapper so it doesn't alert on failure)
-    fetch("http://127.0.0.1:8000/save_history", {
+    fetch(SAVE_URL, {
         method: "POST",
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify(item)
