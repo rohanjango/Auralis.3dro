@@ -9,16 +9,22 @@ const loading = document.getElementById("loading");
 const result = document.getElementById("result");
 const audioUpload = document.getElementById("audioUpload");
 const saveBtn = document.getElementById("saveBtn");
-const timeDisplay = document.querySelector(".time-display"); // ✅ Targeted your existing HTML class
+const timeDisplay = document.querySelector(".time-display");
+
+// --- RECORDING VARIABLES ---
+const recordBtn = document.getElementById("recordBtn");
+const recordStatus = document.getElementById("recordStatus");
+const recordTimer = document.getElementById("recordTimer");
 
 let currentFile = null;
 let alreadyAnalyzed = false;
 let currentAnalysisData = null;
+let mediaRecorder;
+let audioChunks = [];
+let recordTimerInterval;
 
-// API URLs
-const API_URLS = [
-    "http://127.0.0.1:8000/analyzee"
-];
+// ✅ CORRECT API URL
+const API_URL = "https://ideal-space-funicular-69pj75q9r6rvcr7qw-8000.app.github.dev/analyze";
 
 // --- FILE UPLOAD HANDLER ---
 audioUpload.addEventListener("change", function() {
@@ -27,6 +33,65 @@ audioUpload.addEventListener("change", function() {
     }
 });
 
+// --- RECORDING LOGIC ---
+if(recordBtn) {
+    recordBtn.addEventListener("click", async () => {
+        if (!mediaRecorder || mediaRecorder.state === "inactive") {
+            // START RECORDING
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                mediaRecorder.start();
+                
+                // Reset chunks
+                audioChunks = [];
+                
+                // UI Updates
+                recordBtn.innerHTML = '<i class="fa-solid fa-stop"></i> Stop';
+                recordBtn.style.background = "#ff0000"; // Red
+                recordStatus.classList.remove("hidden");
+                
+                // Timer
+                let seconds = 0;
+                recordTimerInterval = setInterval(() => {
+                    seconds++;
+                    const mins = Math.floor(seconds/60).toString().padStart(2,'0');
+                    const secs = (seconds%60).toString().padStart(2,'0');
+                    recordTimer.textContent = `${mins}:${secs}`;
+                }, 1000);
+
+                // Collect Data
+                mediaRecorder.addEventListener("dataavailable", e => audioChunks.push(e.data));
+                
+                // STOP EVENT
+                mediaRecorder.addEventListener("stop", () => {
+                    clearInterval(recordTimerInterval);
+                    
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                    const audioFile = new File([audioBlob], "mic_recording.wav", { type: "audio/wav" });
+                    
+                    // Reset UI
+                    recordBtn.innerHTML = '<i class="fa-solid fa-microphone"></i> Record Now';
+                    recordBtn.style.background = "#ff4757";
+                    recordStatus.classList.add("hidden");
+                    recordTimer.textContent = "00:00";
+                    
+                    // Process File
+                    initPlayer(audioFile);
+                    analyzeAudio(audioFile);
+                });
+            } catch (err) {
+                alert("Microphone access denied. Please check browser permissions.");
+                console.error(err);
+            }
+        } else {
+            // STOP RECORDING
+            mediaRecorder.stop();
+        }
+    });
+}
+
+// --- PLAYER INITIALIZATION ---
 function initPlayer(file) {
     currentFile = file;
     alreadyAnalyzed = false;
@@ -35,255 +100,152 @@ function initPlayer(file) {
     audio.src = URL.createObjectURL(file);
     audio.load();
 
-    // Reset time display immediately
     timeDisplay.textContent = "00:00 / 00:00";
-
     uploadContainer.classList.add("hidden");
     playerContainer.classList.remove("hidden");
     result.classList.add("hidden");
     playBtn.innerHTML = '<i class="fa-solid fa-play"></i>';
 }
 
-// --- TIME DISPLAY LOGIC (NEW) ---
-// Helper to format seconds to MM:SS
-function formatTime(seconds) {
-    if (isNaN(seconds)) return "00:00";
-    const minutes = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+// --- ANALYSIS FUNCTION (Fixed) ---
+async function analyzeAudio(file) {
+    loading.classList.remove("hidden");
+    result.classList.add("hidden");
+
+    try {
+        console.log(`🔄 Sending to API: ${API_URL}`);
+        const formData = new FormData();
+        formData.append("file", file);
+
+        // ✅ STANDARD FETCH (Solves CORS if backend is correct)
+        const response = await fetch(API_URL, {
+            method: "POST",
+            body: formData
+        });
+
+        if (!response.ok) {
+            const txt = await response.text();
+            throw new Error(`HTTP ${response.status}: ${txt}`);
+        }
+
+        const data = await response.json();
+        console.log("✅ Success:", data);
+
+        if (data.error) throw new Error(data.error);
+
+        currentAnalysisData = data;
+        
+        // Update UI
+        document.getElementById("locationText").textContent = data.location || "Unknown";
+        document.getElementById("situationText").textContent = data.situation || "Unknown";
+        
+        let conf = data.confidence;
+        if (typeof conf === "number") {
+             conf = conf <= 1 ? Math.round(conf * 100) : Math.round(conf);
+             document.getElementById("confidenceText").textContent = conf + "%";
+        }
+
+        document.getElementById("evidenceText").textContent = Array.isArray(data.evidence) ? data.evidence.join(", ") : "None";
+        document.getElementById("summaryText").textContent = data.summary || "No summary";
+        document.getElementById("transcribeText").textContent = data.transcribed || "No transcription";
+
+        loading.classList.add("hidden");
+        result.classList.remove("hidden");
+
+    } catch (error) {
+        console.warn(`❌ Failed:`, error);
+        loading.classList.add("hidden");
+        alert(
+            "🚨 Backend Connection Failed!\n\n" +
+            "1) Ensure backend is running:\n" +
+            "   py -m uvicorn app:app --reload --host 127.0.0.1 --port 8000\n\n" +
+            "2) Ensure you are on: http://127.0.0.1:5500\n\n" +
+            "Error: " + error.message
+        );
+    }
 }
 
-// Update time as audio plays
+// --- TIME DISPLAY & PLAY BTN ---
 audio.addEventListener("timeupdate", () => {
-    const current = formatTime(audio.currentTime);
-    const total = formatTime(audio.duration);
-    timeDisplay.textContent = `${current} / ${total}`;
+    const fmt = s => {
+        if(isNaN(s)) return "00:00";
+        let m = Math.floor(s/60).toString().padStart(2,'0');
+        let sc = Math.floor(s%60).toString().padStart(2,'0');
+        return `${m}:${sc}`;
+    };
+    timeDisplay.textContent = `${fmt(audio.currentTime)} / ${fmt(audio.duration)}`;
 });
 
-// Set total duration when metadata loads
-audio.addEventListener("loadedmetadata", () => {
-    timeDisplay.textContent = `00:00 / ${formatTime(audio.duration)}`;
-});
-
-
-// --- PLAY BUTTON LOGIC ---
 playBtn.addEventListener("click", async () => {
-    if (!currentFile) {
-        alert("Please upload a file first.");
-        return;
-    }
-
+    if (!currentFile) return alert("Upload first");
+    
     if (!alreadyAnalyzed) {
         await analyzeAudio(currentFile);
         alreadyAnalyzed = true;
     }
 
     if (audio.paused) {
-        audio.play().then(() => {
-            playBtn.innerHTML = '<i class="fa-solid fa-pause"></i>';
-            waveform.classList.add("active");
-            bars.forEach(b => b.style.animationPlayState = "running");
-        }).catch(e => console.error("Audio Play Error:", e));
+        audio.play();
+        playBtn.innerHTML = '<i class="fa-solid fa-pause"></i>';
+        waveform.classList.add("active");
     } else {
         audio.pause();
         playBtn.innerHTML = '<i class="fa-solid fa-play"></i>';
         waveform.classList.remove("active");
-        bars.forEach(b => b.style.animationPlayState = "paused");
     }
 });
-
-audio.addEventListener("ended", () => {
-    playBtn.innerHTML = '<i class="fa-solid fa-play"></i>';
-    waveform.classList.remove("active");
-    bars.forEach(b => b.style.animationPlayState = "paused");
-});
-
-// --- ANALYSIS FUNCTION ---
-async function analyzeAudio(file) {
-    loading.classList.remove("hidden");
-    result.classList.add("hidden");
-
-    let lastError = null;
-
-    for (let API_URL of API_URLS) {
-        try {
-            console.log(`🔄 Trying API: ${API_URL}`);
-
-            const formData = new FormData();
-            formData.append("file", file);
-
-            const response = await fetch(API_URL, {
-                method: "POST",
-                body: formData,
-                mode: "cors",
-                cache: "no-store",
-            });
-
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-
-            const data = await response.json();
-
-            if (data.error) {
-                throw new Error(data.error);
-            }
-
-            console.log("✅ Success:", data);
-
-            currentAnalysisData = data;
-
-            document.getElementById("locationText").textContent = data.location || "Unknown";
-            document.getElementById("situationText").textContent = data.situation || "Analysis Complete";
-
-            let conf = data.confidence;
-            if (typeof conf === "number") {
-                if (conf <= 1) {
-                    conf = Math.round(conf * 100);
-                } else {
-                    conf = Math.round(conf);
-                }
-                document.getElementById("confidenceText").textContent = conf + "%";
-            } else {
-                document.getElementById("confidenceText").textContent = "--%";
-            }
-
-            if (Array.isArray(data.evidence)) {
-                document.getElementById("evidenceText").textContent = data.evidence.join(", ");
-            } else {
-                document.getElementById("evidenceText").textContent = data.evidence || "None";
-            }
-
-            document.getElementById("summaryText").textContent = data.summary || "No summary available";
-            document.getElementById("transcribeText").textContent = data.transcribed || data.transcribe || "No transcription";
-
-            loading.classList.add("hidden");
-            result.classList.remove("hidden");
-            return;
-
-        } catch (error) {
-            console.warn(`❌ Failed with ${API_URL}:`, error.message);
-            lastError = error;
-        }
-    }
-
-    loading.classList.add("hidden");
-    alert(
-        "🚨 Backend Connection Failed!\n\n" +
-        "Solutions:\n" +
-        "1) Make sure backend is running:\n" +
-        "   uvicorn app2:app --reload --host 127.0.0.1 --port 8000\n\n" +
-        "2) Check backend docs:\n" +
-        "   http://127.0.0.1:8000/docs\n\n" +
-        "Error: " + (lastError ? lastError.message : "Unknown")
-    );
-}
 
 // --- SAVE TO DASHBOARD ---
 saveBtn.addEventListener("click", function() {
-    if (!currentAnalysisData) {
-        alert("No analysis data to save!");
-        return;
-    }
+    if (!currentAnalysisData) return;
 
-    let history;
-    try {
-        history = JSON.parse(localStorage.getItem("auralisHistory")) || [];
-        if (!Array.isArray(history)) history = [];
-    } catch {
-        history = [];
-    }
-
-    const now = new Date();
-    const timestamp = now.toLocaleString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-    });
-
-    const transcription = currentAnalysisData.transcribed || currentAnalysisData.transcribe || "No transcription";
-
-    const historyItem = {
-        timestamp: timestamp,
-        location: currentAnalysisData.location || "Unknown",
-        situation: currentAnalysisData.situation || "Unknown",
-        confidence: document.getElementById("confidenceText").textContent || "--%",
-        soundType: Array.isArray(currentAnalysisData.evidence) ?
-            currentAnalysisData.evidence[0] : "Audio Analysis",
-        fileName: currentFile ? currentFile.name : "unknown.wav",
-        transcription: transcription
+    const item = {
+        timestamp: new Date().toLocaleString(),
+        location: currentAnalysisData.location,
+        situation: currentAnalysisData.situation,
+        confidence: document.getElementById("confidenceText").textContent,
+        soundType: Array.isArray(currentAnalysisData.evidence) ? currentAnalysisData.evidence[0] : "Audio",
+        fileName: currentFile.name,
+        transcription: currentAnalysisData.transcribed || ""
     };
 
-    history.unshift(historyItem);
+    let history = JSON.parse(localStorage.getItem("auralisHistory")) || [];
+    history.unshift(item);
+    localStorage.setItem("auralisHistory", JSON.stringify(history.slice(0,50)));
 
-    if (history.length > 50) {
-        history = history.slice(0, 50);
-    }
-
-    localStorage.setItem("auralisHistory", JSON.stringify(history));
-
-    const originalHTML = saveBtn.innerHTML;
+    // Cloud Save (Try/Catch wrapper so it doesn't alert on failure)
+    fetch("http://127.0.0.1:8000/save_history", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(item)
+    }).catch(e => console.log("Cloud save skipped"));
 
     saveBtn.innerHTML = '<i class="fa-solid fa-check"></i> Saved!';
     saveBtn.style.background = "#28a745";
-
     setTimeout(() => {
-        saveBtn.innerHTML = originalHTML;
+        saveBtn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save Analysis to Dashboard';
         saveBtn.style.background = "";
     }, 2000);
-
-    console.log("💾 Saved to history:", historyItem);
 });
 
-// --- DRAG AND DROP FUNCTIONALITY ---
+// --- DRAG & DROP ---
 const dropZone = document.querySelector('.upload-container');
-
 if (dropZone) {
-    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-        document.body.addEventListener(eventName, preventDefaults, false);
-    });
-
-    function preventDefaults(e) {
+    dropZone.addEventListener('dragover', e => {
         e.preventDefault();
-        e.stopPropagation();
-    }
-
-    ['dragenter', 'dragover'].forEach(eventName => {
-        dropZone.addEventListener(eventName, highlight, false);
-    });
-
-    ['dragleave', 'drop'].forEach(eventName => {
-        dropZone.addEventListener(eventName, unhighlight, false);
-    });
-
-    function highlight(e) {
         dropZone.style.borderColor = '#7f3cff';
         dropZone.style.background = 'rgba(127, 60, 255, 0.1)';
-        dropZone.style.transform = 'scale(1.02)';
-    }
-
-    function unhighlight(e) {
+    });
+    dropZone.addEventListener('dragleave', e => {
+        e.preventDefault();
         dropZone.style.borderColor = '#333';
         dropZone.style.background = 'rgba(255,255,255,0.01)';
-        dropZone.style.transform = 'scale(1)';
-    }
-
-    dropZone.addEventListener('drop', handleDrop, false);
-
-    function handleDrop(e) {
-        const dt = e.dataTransfer;
-        const files = dt.files;
-
-        if (files.length > 0) {
-            const file = files[0];
-
-            if (file.type.startsWith('audio/')) {
-                initPlayer(file);
-            } else {
-                alert('⚠️ Please drop an audio file (MP3, WAV, M4A, MP4)');
-            }
-        }
-    }
+    });
+    dropZone.addEventListener('drop', e => {
+        e.preventDefault();
+        dropZone.style.borderColor = '#333';
+        dropZone.style.background = 'rgba(255,255,255,0.01)';
+        const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('audio/'));
+        if (files.length > 0) initPlayer(files[0]);
+    });
 }

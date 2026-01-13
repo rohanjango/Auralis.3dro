@@ -45,11 +45,21 @@
         <div id="uploadContainer" class="upload-container">
             <input type="file" id="audioUpload" accept="audio/*" hidden aria-label="Upload Audio File"/>
             
-            <button class="btn large-upload-btn btn-hover" onclick="document.getElementById('audioUpload').click()">
-                <i class="fa-solid fa-cloud-arrow-up"></i> Upload Audio File
-            </button>
+            <div style="display: flex; gap: 15px; justify-content: center; margin-bottom: 20px;">
+                <button class="btn large-upload-btn btn-hover" onclick="document.getElementById('audioUpload').click()" style="margin:0;">
+                    <i class="fa-solid fa-cloud-arrow-up"></i> Upload Audio
+                </button>
+                
+                <button id="recordBtn" class="btn large-upload-btn btn-hover" style="background: #ff4757; color: white; border: none; margin:0;">
+                    <i class="fa-solid fa-microphone"></i> Record Now
+                </button>
+            </div>
             
-            <p class="small-text">or drag and drop MP3, WAV, M4A here</p>
+            <p class="small-text">Drag & drop files or Record instantly</p>
+            
+            <p id="recordStatus" class="hidden" style="color: #ff4757; font-weight: bold; margin-top: 10px;">
+                Recording... <span id="recordTimer">00:00</span>
+            </p>
 
             <div class="cloud-options">
                 <button class="cloud-btn google" onclick="alert('Connecting to Google Drive...')">
@@ -75,6 +85,39 @@
                 </div>
 
                 <div class="time-display">00:00 / 00:00</div>
+            </div>
+        </div>
+
+    </div>
+
+            <div class="cloud-options">
+                <button class="cloud-btn google" onclick="alert('Connecting to Google Drive...')">
+                    <i class="fa-brands fa-google-drive"></i> From Drive
+                </button>
+                <button class="cloud-btn dropbox" onclick="alert('Connecting to Dropbox...')">
+                    <i class="fa-brands fa-dropbox"></i> From Dropbox
+                </button>
+            </div>
+        </div>
+
+        <div id="playerContainer" class="player-container hidden">
+            <div class="glass-player">
+                <button id="playBtn" class="play-btn btn-hover" aria-label="Play or Pause Audio"><i class="fa-solid fa-play"></i></button>
+                
+                <div class="track-info">
+                    <span id="fileNameDisplay">mysound_recording.mp3</span>
+                    <div class="waveform" id="waveform">
+                        <span></span><span></span><span></span><span></span><span></span>
+                        <span></span><span></span><span></span><span></span><span></span>
+                        <span></span><span></span><span></span><span></span><span></span>
+                    </div>
+                </div>
+
+                <div class="time-display">00:00 / 00:00</div>
+            </div>
+            
+            <div id="batchProgress" class="hidden" style="margin-top: 15px; text-align: center; color: #caa7ff;">
+                Processing file <span id="batchCurrent">1</span> of <span id="batchTotal">1</span>...
             </div>
         </div>
 
@@ -123,8 +166,8 @@
       </div>
 
       <div style="background:#181818; padding:15px; border-radius:10px;">
-          <small style="color:#666; display:block; margin-bottom:5px;">Transcription</small>
-          <p id="transcribeText" style="font-size:14px; line-height:1.5; color:#ddd; font-style:italic;">...</p>
+          <small style="color:#666; display:block; margin-bottom:5px;">Transcription (Editable)</small>
+          <textarea id="transcribeText" style="width: 100%; background: transparent; border: 1px solid #333; color: #ddd; padding: 10px; border-radius: 5px; min-height: 80px; font-family: inherit; line-height: 1.5;" spellcheck="false"></textarea>
       </div>
 
       <button id="saveBtn" class="btn full-width btn-hover">
