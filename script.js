@@ -23,8 +23,8 @@ let audioChunks = [];
 let recordTimerInterval;
 
 // ✅ FIXED: Point to Localhost
-const API_URL = "http://127.0.0.1:8000/analyze";
-const SAVE_URL = "http://127.0.0.1:8000/save_history";
+const API_URL = "https://verbose-lamp-5g9wprjg4jxx37j75-8000.app.github.dev/analyze";
+const SAVE_URL = "https://verbose-lamp-5g9wprjg4jxx37j75-8000.app.github.dev/save_history";
 
 // --- TOAST NOTIFICATION UTILITY ---
 function showToast(message, type = "info") {
