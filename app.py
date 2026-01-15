@@ -1,4 +1,14 @@
 # ==============================
+# 🔇 SILENCE TENSORFLOW WARNINGS
+# ==============================
+import os
+import logging
+
+# This must be done BEFORE importing tensorflow
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # 0=All, 1=Filter Info, 2=Filter Warning, 3=Filter Error
+logging.getLogger('tensorflow').setLevel(logging.ERROR)
+
+# ==============================
 # 📦 IMPORTS
 # ==============================
 from fastapi import FastAPI, UploadFile, File
@@ -11,14 +21,12 @@ import csv
 import requests
 from transformers import pipeline
 import librosa
-import os
 import shutil
 import subprocess
 
 # ==============================
 # 🎬 FFMPEG DETECTION + PATH FIX
 # ==============================
-# ✅ PRESERVED YOUR EXACT PATH
 FFMPEG_BIN_DIR = r"D:\photo\ffmpeg\ffmpeg-2026-01-07-git-af6a1dd0b2-full_build\bin"
 
 def ensure_ffmpeg_available():
@@ -44,14 +52,12 @@ def ensure_ffmpeg_available():
             return True
 
         print("❌ FFmpeg folder exists but ffmpeg still not detected.")
-        print("   Make sure ffmpeg.exe is inside:")
-        print(f"   {FFMPEG_BIN_DIR}")
         return False
 
     print("❌ FFmpeg bin folder not found:", FFMPEG_BIN_DIR)
     return False
 
-# Run FFmpeg detection ON SERVER STARTUP
+# Run FFmpeg detection
 ensure_ffmpeg_available()
 
 # ==============================
@@ -60,15 +66,17 @@ ensure_ffmpeg_available()
 app = FastAPI(title="Auralis API")
 
 # ==============================
-# 🔧 UPDATED CORS CONFIGURATION
+# 🔧 CORS CONFIGURATION (FIXED)
 # ==============================
-# Changed to ["*"] to allow connection from ANY localhost port (fixes the connection error)
+# We allow ["*"] to permanently resolve connection issues between
+# localhost:5500, 127.0.0.1:5500, or any other local port.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], 
+    allow_origins=["*"],  # ✅ ALLOW ALL ORIGINS (Fixes frontend connection)
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["*"],  # ✅ ALLOW ALL METHODS (POST, GET, OPTIONS)
     allow_headers=["*"],
+    expose_headers=["*"]
 )
 
 # Root redirect to docs
@@ -101,14 +109,18 @@ print("✅ YAMNet loaded!")
 # 🏷️ YAMNet LABELS
 # ==============================
 labels_url = "https://raw.githubusercontent.com/tensorflow/models/master/research/audioset/yamnet/yamnet_class_map.csv"
-response = requests.get(labels_url)
-labels = []
-reader = csv.reader(response.text.splitlines())
-next(reader)
-for row in reader:
-    labels.append(row[2])
+try:
+    response = requests.get(labels_url)
+    labels = []
+    reader = csv.reader(response.text.splitlines())
+    next(reader)
+    for row in reader:
+        labels.append(row[2])
+    print(f"✅ Loaded {len(labels)} sound labels")
+except Exception as e:
+    print(f"⚠️ Could not load online labels: {e}")
+    labels = []
 
-print(f"✅ Loaded {len(labels)} sound labels")
 print("="*50)
 print("🚀 SERVER READY - Waiting for requests...")
 print("="*50 + "\n")
@@ -225,7 +237,7 @@ async def analyze(file: UploadFile = File(...)):
             raw_sounds = {}
             for i in top_indices:
                 raw_sounds[labels[i]] = float(mean_scores[i])
-
+            
             print(f"🔊 TOP SOUNDS: {list(raw_sounds.keys())[:3]}")
 
         except Exception as e:
@@ -253,17 +265,20 @@ async def analyze(file: UploadFile = File(...)):
 
     except Exception as e:
         print(f"💥 CRITICAL ERROR: {e}")
+        import traceback
+        traceback.print_exc()
         return JSONResponse(status_code=500, content={"error": f"Server error: {str(e)}"})
 
     finally:
-        # Cleanup
         if os.path.exists(temp_filename):
             try:
                 os.remove(temp_filename)
             except:
                 pass
 
-# ✅ ADDED: Mock endpoints so Login/Save don't crash the frontend
+# ==============================
+# ✅ MOCK ENDPOINTS
+# ==============================
 @app.post("/login")
 async def login_mock(data: dict):
     return {"token": "mock-token-123", "email": data.get("email", "user@test.com")}
